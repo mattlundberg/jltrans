@@ -1,0 +1,45 @@
+---
+import { getCollection, render } from 'astro:content';
+import type { CollectionEntry } from 'astro:content';
+import type { GetStaticPaths } from 'astro';
+import PageLayout from '../../layouts/PageLayout.astro';
+import Container from '../../components/primitives/Container.astro';
+import Prose from '../../components/primitives/Prose.astro';
+import Button from '../../components/primitives/Button.astro';
+import { formatDate, isoDate } from '../../lib/format';
+
+export const getStaticPaths: GetStaticPaths = async () => {
+  const posts = await getCollection('news', ({ data }) => !data.draft);
+  return posts.map((post) => ({ params: { slug: post.id }, props: { post } }));
+};
+
+/** getStaticPaths props are untyped by design, so restate the shape here. */
+interface Props {
+  post: CollectionEntry<'news'>;
+}
+
+const { post }: Props = Astro.props;
+const { Content } = await render(post);
+---
+
+<PageLayout title={post.data.title} kicker="News" description={post.data.excerpt}>
+  <Container width="prose" class="py-section">
+    <div class="flex flex-col gap-3 border-b border-(--border-subtle) pb-6">
+      <time
+        datetime={isoDate(post.data.date)}
+        class="text-xs font-semibold tracking-[0.12em] uppercase text-(--accent)"
+      >
+        {formatDate(post.data.date)}
+      </time>
+      {post.data.author && <p class="text-sm text-(--text-muted)">By {post.data.author}</p>}
+    </div>
+
+    <Prose size="lg" class="mt-8">
+      <Content />
+    </Prose>
+
+    <div class="mt-12 border-t border-(--border-subtle) pt-8">
+      <Button href="/news/" variant="secondary">All news</Button>
+    </div>
+  </Container>
+</PageLayout>

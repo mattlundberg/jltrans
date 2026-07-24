@@ -1,0 +1,51 @@
+---
+import Card from '../primitives/Card.astro';
+import { initials } from '../../lib/format';
+
+/**
+ * A team member. Surface comes from Card; this adds only the avatar and meta.
+ */
+interface Props {
+  name: string;
+  role: string;
+  location?: string;
+  /** Once real photos exist. Falls back to initials until then. */
+  photo?: string;
+}
+
+const { name, role, location, photo } = Astro.props;
+---
+
+<Card as="li" tone="raised" class="gap-4">
+  <div class="flex items-center gap-4">
+    {
+      photo ? (
+        <img
+          src={photo}
+          alt={name}
+          width="56"
+          height="56"
+          loading="lazy"
+          decoding="async"
+          class="h-14 w-14 rounded-full object-cover"
+        />
+      ) : (
+        <span
+          class="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-(--accent-subtle-bg) text-base font-bold text-(--accent-subtle-text)"
+          aria-hidden="true"
+        >
+          {initials(name)}
+        </span>
+      )
+    }
+    <div class="flex flex-col gap-0.5">
+      <h3 class="text-lg leading-tight font-bold text-(--text-strong)">{name}</h3>
+      <p class="text-sm font-semibold text-(--accent)">{role}</p>
+      {location && <p class="text-xs tracking-wide uppercase text-(--text-muted)">{location}</p>}
+    </div>
+  </div>
+
+  <div class="text-sm leading-relaxed text-(--text-body)">
+    <slot />
+  </div>
+</Card>

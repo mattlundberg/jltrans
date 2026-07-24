@@ -1,0 +1,65 @@
+---
+import Card from '../primitives/Card.astro';
+import Icon from '../primitives/Icon.astro';
+
+/**
+ * An application form.
+ *
+ * `href` is null until the hosted form platform is selected, so this renders an
+ * explicit "coming soon" state rather than a dead link. A card that looks
+ * clickable and does nothing is worse than one that says so.
+ */
+interface Props {
+  title: string;
+  description: string;
+  href: string | null;
+  audience: string;
+}
+
+const { title, description, href, audience } = Astro.props;
+const available = href !== null;
+---
+
+<Card as="li" tone="raised" interactive={available} class="gap-3">
+  <div class="flex items-start justify-between gap-3">
+    <h3 class="text-lg leading-tight font-bold text-(--text-strong)">
+      {
+        available ? (
+          <a href={href} class="after:absolute after:inset-0 after:content-['']">
+            {title}
+          </a>
+        ) : (
+          title
+        )
+      }
+    </h3>
+    {
+      available ? (
+        <Icon
+          name="arrow-right"
+          size={18}
+          class="mt-1 text-(--accent) transition-transform group-hover:translate-x-0.5"
+        />
+      ) : (
+        <span class="mt-0.5 shrink-0 rounded-full bg-(--surface-sunken) px-2.5 py-1 text-[0.65rem] font-semibold tracking-wide uppercase text-(--text-muted)">
+          Soon
+        </span>
+      )
+    }
+  </div>
+
+  <p class="text-sm leading-relaxed text-(--text-body)">{description}</p>
+
+  {
+    !available && (
+      <p class="mt-1 text-xs leading-relaxed text-(--text-muted)">
+        Online submission is being set up. In the meantime, call us and we will send the form to you
+        directly.
+      </p>
+    )
+  }
+
+  <p class="mt-auto pt-2 text-[0.65rem] font-semibold tracking-[0.1em] uppercase text-(--text-muted)">
+    For {audience}
+  </p>
+</Card>

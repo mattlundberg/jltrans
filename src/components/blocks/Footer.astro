@@ -1,0 +1,84 @@
+---
+import Container from '../primitives/Container.astro';
+import ContactBlock from './ContactBlock.astro';
+import { primaryNav, secondaryNav } from '../../data/nav';
+import { site, memberships } from '../../data/site';
+import Icon from '../primitives/Icon.astro';
+
+const year = new Date().getFullYear();
+---
+
+<footer class="mt-auto bg-(--surface-inverse) text-(--text-on-inverse)">
+  <Container class="grid gap-12 py-14 sm:py-20 lg:grid-cols-[1.1fr_1fr_1fr]">
+    <div class="flex flex-col gap-5">
+      <div class="flex flex-col leading-none">
+        <span class="text-2xl font-extrabold tracking-tight">
+          J<span class="text-(--color-fleet-300)">&amp;</span>L
+        </span>
+        <span
+          class="text-[0.6rem] font-semibold tracking-[0.18em] uppercase text-(--text-muted-on-inverse)"
+        >
+          Transportation
+        </span>
+      </div>
+      <p class="max-w-sm text-sm leading-relaxed text-(--text-muted-on-inverse)">
+        {site.description}
+      </p>
+      <ul class="mt-2 flex flex-wrap gap-x-4 gap-y-2">
+        {
+          memberships.map((m) => (
+            <li>
+              <a
+                href={m.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                title={m.name}
+                class="inline-flex items-center gap-1 text-xs font-semibold tracking-wide text-(--text-muted-on-inverse) underline-offset-4 hover:text-(--color-fleet-300) hover:underline"
+              >
+                {m.abbr}
+                <Icon name="external" size={12} />
+              </a>
+            </li>
+          ))
+        }
+      </ul>
+    </div>
+
+    <nav aria-label="Footer">
+      <h2 class="text-xs font-semibold tracking-[0.14em] uppercase text-(--color-fleet-300)">
+        Site
+      </h2>
+      <ul class="mt-4 flex flex-col gap-2.5">
+        {
+          [...primaryNav, ...secondaryNav].map((item) => (
+            <li>
+              <a
+                href={item.href}
+                class="text-sm font-medium underline-offset-4 hover:text-(--color-fleet-300) hover:underline"
+              >
+                {item.label}
+              </a>
+              {item.blurb && (
+                <span class="block text-xs text-(--text-muted-on-inverse)">{item.blurb}</span>
+              )}
+            </li>
+          ))
+        }
+      </ul>
+    </nav>
+
+    <div>
+      <h2 class="text-xs font-semibold tracking-[0.14em] uppercase text-(--color-fleet-300)">
+        Contact
+      </h2>
+      <ContactBlock tone="inverse" class="mt-4" />
+    </div>
+  </Container>
+
+  <div class="border-t border-white/10">
+    <Container class="flex flex-col gap-2 py-6 text-xs text-(--text-muted-on-inverse) sm:flex-row sm:items-center sm:justify-between">
+      <p>&copy; {year} {site.name}. All rights reserved.</p>
+      <p>Serving Arizona, Nevada and Sonora, Mexico since {site.founded}.</p>
+    </Container>
+  </div>
+</footer>

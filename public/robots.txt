@@ -1,0 +1,13 @@
+# Authored from scratch.
+#
+# The previous robots.txt on this domain had been rewritten by an attacker to
+# advertise injected spam sitemaps, regenerated daily. Nothing from it was
+# carried over. See the project plan for the details.
+
+User-agent: *
+Allow: /
+
+# Password-gated; also sends X-Robots-Tag: noindex at the edge.
+Disallow: /do-i-work
+
+Sitemap: https://jltrans.com/sitemap-index.xml

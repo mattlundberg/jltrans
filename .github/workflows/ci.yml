@@ -1,0 +1,87 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      # Types first — cheapest failure.
+      - name: Type check
+        run: npm run check
+
+      # Clean-room guard on sources. Also runs automatically as `prebuild`,
+      # but it is listed explicitly so a failure here is unambiguous in the log.
+      - name: Scan sources for spam signatures
+        run: node scripts/scan-spam.mjs src public
+
+      - name: Build
+        run: npm run build
+
+      # Guard the built output too. This is the check that would catch an
+      # injected link or a CJK payload that only appears after rendering.
+      - name: Scan build output
+        run: node scripts/scan-spam.mjs dist
+
+      # The protected page must never be baked into the static bundle.
+      - name: Assert protected content is not in dist/
+        run: |
+          if grep -rl "DO_I_WORK_PROTECTED_CONTENT" dist/ 2>/dev/null; then
+            echo "::error::Protected content leaked into the static build."
+            exit 1
+          fi
+          echo "OK — no protected content in dist/"
+
+      # Contact details must resolve from src/data/site.ts only. The live site
+      # shipped two different after-hours numbers because they were hardcoded
+      # in both the contact block and the footer.
+      - name: Assert no hardcoded contact details
+        run: |
+          if grep -rnE '\(60[12]\) [0-9]{3}-[0-9]{4}' src/ --include='*.astro' --include='*.md' 2>/dev/null; then
+            echo "::error::Hardcoded phone number outside src/data/site.ts."
+            exit 1
+          fi
+          echo "OK — contact details are centralised"
+
+      - name: Assert no client-side framework directives
+        run: |
+          if grep -rn 'client:' src/ --include='*.astro' 2>/dev/null; then
+            echo "::error::Unexpected client: directive. This scaffold is server-rendered only."
+            exit 1
+          fi
+          echo "OK — no client: directives"
+
+      # Colours must resolve to @theme tokens. The only legitimate exception is
+      # <meta name="theme-color">, where the browser requires a literal colour
+      # and will not accept a CSS custom property.
+      - name: Assert no raw hex colours in components
+        run: |
+          if grep -rnE '#[0-9a-fA-F]{3,8}\b' src/components src/pages src/layouts --include='*.astro' \
+               | grep -v 'theme-color' | grep -v 'gradient'; then
+            echo "::error::Raw hex colour outside the token system. Add it to @theme in global.css."
+            exit 1
+          fi
+          echo "OK — colours resolve to tokens"
+
+      # All five card variants must share the one Card surface.
+      - name: Assert card variants compose over the Card primitive
+        run: |
+          for f in src/components/cards/*.astro; do
+            if ! grep -q "primitives/Card.astro" "$f"; then
+              echo "::error file=$f::Card variant does not import the shared Card primitive."
+              exit 1
+            fi
+          done
+          echo "OK — all card variants build on primitives/Card.astro"

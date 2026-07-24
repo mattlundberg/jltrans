@@ -1,0 +1,25 @@
+---
+import Card from '../primitives/Card.astro';
+import Icon from '../primitives/Icon.astro';
+import type { IconName } from '../primitives/Icon.astro';
+
+/** One of the three differentiator blocks from the old home page. */
+interface Props {
+  title: string;
+  icon: IconName;
+}
+
+const { title, icon } = Astro.props;
+---
+
+<Card as="li" tone="raised" class="gap-4">
+  <span
+    class="flex h-11 w-11 items-center justify-center rounded-xl bg-(--accent-subtle-bg) text-(--accent-subtle-text)"
+  >
+    <Icon name={icon} size={22} />
+  </span>
+  <h3 class="text-xl leading-tight font-bold text-(--text-strong)">{title}</h3>
+  <p class="text-sm leading-relaxed text-(--text-body)">
+    <slot />
+  </p>
+</Card>

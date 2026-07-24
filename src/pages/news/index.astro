@@ -1,0 +1,52 @@
+---
+import { getCollection } from 'astro:content';
+import PageLayout from '../../layouts/PageLayout.astro';
+import Container from '../../components/primitives/Container.astro';
+import Card from '../../components/primitives/Card.astro';
+import Icon from '../../components/primitives/Icon.astro';
+import { formatDate, isoDate } from '../../lib/format';
+
+const posts = (await getCollection('news', ({ data }) => !data.draft)).sort(
+  (a, b) => b.data.date.getTime() - a.data.date.getTime()
+);
+---
+
+<PageLayout
+  title="News"
+  kicker="News"
+  description="Company news and updates from J & L Transportation."
+  lead="Company news and updates."
+>
+  <Container width="prose" class="py-section">
+    {
+      posts.length === 0 ? (
+        <p class="text-(--text-muted)">No posts yet.</p>
+      ) : (
+        <ul class="flex flex-col gap-6">
+          {posts.map((post) => (
+            <Card as="li" interactive>
+              <article class="flex flex-col gap-3">
+                <time
+                  datetime={isoDate(post.data.date)}
+                  class="text-xs font-semibold tracking-[0.12em] uppercase text-(--accent)"
+                >
+                  {formatDate(post.data.date)}
+                </time>
+                <h2 class="text-xl leading-tight font-bold text-(--text-strong)">
+                  <a href={`/news/${post.id}/`} class="after:absolute after:inset-0 after:content-['']">
+                    {post.data.title}
+                  </a>
+                </h2>
+                <p class="text-sm leading-relaxed text-(--text-body)">{post.data.excerpt}</p>
+                <p class="mt-1 inline-flex items-center gap-1.5 text-sm font-semibold text-(--accent)">
+                  Read more
+                  <Icon name="arrow-right" size={15} class="transition-transform group-hover:translate-x-0.5" />
+                </p>
+              </article>
+            </Card>
+          ))}
+        </ul>
+      )
+    }
+  </Container>
+</PageLayout>

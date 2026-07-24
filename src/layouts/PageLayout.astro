@@ -1,0 +1,47 @@
+---
+import BaseLayout from './BaseLayout.astro';
+import Container from '../components/primitives/Container.astro';
+import SectionHeading from '../components/primitives/SectionHeading.astro';
+
+/**
+ * Inner-page shell: breadcrumb, page <h1>, and optional lead paragraph.
+ * Home does not use this — it has its own hero.
+ */
+interface Props {
+  title: string;
+  description: string;
+  /** Small label above the h1. Defaults to nothing. */
+  kicker?: string;
+  /** Lead paragraph under the h1. Falls back to `description`. */
+  lead?: string;
+  noindex?: boolean;
+}
+
+const { title, description, kicker, lead, noindex = false } = Astro.props;
+---
+
+<BaseLayout {title} {description} {noindex}>
+  <slot name="head" slot="head" />
+
+  <div class="border-b border-(--border-subtle) bg-(--surface-sunken)">
+    <Container class="py-4">
+      <nav aria-label="Breadcrumb">
+        <ol class="flex flex-wrap items-center gap-2 text-sm text-(--text-muted)">
+          <li>
+            <a href="/" class="underline-offset-4 hover:text-(--accent) hover:underline">Home</a>
+          </li>
+          <li aria-hidden="true">/</li>
+          <li class="font-medium text-(--text-strong)" aria-current="page">{title}</li>
+        </ol>
+      </nav>
+    </Container>
+
+    <Container class="pt-6 pb-12 sm:pb-16">
+      <SectionHeading as="h1" size="hero" {kicker} {title}>
+        {lead ?? description}
+      </SectionHeading>
+    </Container>
+  </div>
+
+  <slot />
+</BaseLayout>

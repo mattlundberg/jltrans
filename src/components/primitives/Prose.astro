@@ -1,0 +1,122 @@
+---
+/**
+ * Typographic styling for rendered Markdown.
+ *
+ * Written as explicit descendant selectors rather than pulling in
+ * @tailwindcss/typography: the site renders a small, known set of elements, and
+ * this keeps full control of the colour tokens without another dependency.
+ */
+interface Props {
+  size?: 'base' | 'lg';
+  class?: string;
+}
+
+const { size = 'base', class: className = '' } = Astro.props;
+---
+
+<div class:list={['prose-jl', size === 'lg' && 'prose-jl--lg', className]}>
+  <slot />
+</div>
+
+<style>
+  .prose-jl {
+    color: var(--text-body);
+    line-height: 1.7;
+  }
+
+  .prose-jl :global(> * + *) {
+    margin-block-start: 1.15em;
+  }
+
+  .prose-jl--lg {
+    font-size: 1.0625rem;
+  }
+
+  .prose-jl :global(h2),
+  .prose-jl :global(h3) {
+    color: var(--text-strong);
+    font-weight: 700;
+    line-height: 1.25;
+    letter-spacing: -0.015em;
+    margin-block-start: 2em;
+  }
+
+  .prose-jl :global(h2) {
+    font-size: 1.5rem;
+  }
+
+  .prose-jl :global(h3) {
+    font-size: 1.2rem;
+  }
+
+  .prose-jl :global(strong) {
+    color: var(--text-strong);
+    font-weight: 650;
+  }
+
+  .prose-jl :global(a) {
+    color: var(--accent);
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 0.2em;
+  }
+
+  .prose-jl :global(a:hover) {
+    color: var(--accent-hover);
+    text-decoration-thickness: 2px;
+  }
+
+  .prose-jl :global(ul),
+  .prose-jl :global(ol) {
+    padding-inline-start: 1.35em;
+  }
+
+  .prose-jl :global(ul) {
+    list-style: disc;
+  }
+
+  .prose-jl :global(ol) {
+    list-style: decimal;
+  }
+
+  .prose-jl :global(li + li) {
+    margin-block-start: 0.4em;
+  }
+
+  .prose-jl :global(li::marker) {
+    color: var(--color-fleet-400);
+  }
+
+  .prose-jl :global(blockquote) {
+    border-inline-start: 3px solid var(--accent);
+    padding-inline-start: 1.15em;
+    color: var(--text-strong);
+    font-style: italic;
+  }
+
+  .prose-jl :global(hr) {
+    border: 0;
+    border-block-start: 1px solid var(--border-subtle);
+    margin-block: 2.5em;
+  }
+
+  /* Wide content scrolls inside itself so the page never scrolls sideways. */
+  .prose-jl :global(table) {
+    display: block;
+    overflow-x: auto;
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .prose-jl :global(th),
+  .prose-jl :global(td) {
+    border: 1px solid var(--border-subtle);
+    padding: 0.5em 0.75em;
+    text-align: start;
+  }
+
+  .prose-jl :global(th) {
+    background: var(--surface-sunken);
+    color: var(--text-strong);
+  }
+</style>

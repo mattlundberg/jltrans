@@ -1,0 +1,24 @@
+---
+/**
+ * Horizontal page gutter and max width. Every full-width section wraps its
+ * content in one of these so column edges line up down the whole page.
+ */
+interface Props {
+  /** `content` for most sections, `prose` for long-form reading measure. */
+  width?: 'content' | 'prose' | 'wide';
+  class?: string;
+  as?: 'div' | 'section' | 'header' | 'footer' | 'nav' | 'article';
+}
+
+const { width = 'content', class: className = '', as: Tag = 'div' }: Props = Astro.props;
+
+const widths = {
+  content: 'max-w-(--container-content)',
+  prose: 'max-w-(--container-prose)',
+  wide: 'max-w-screen-2xl',
+} as const;
+---
+
+<Tag class:list={['mx-auto w-full px-5 sm:px-8', widths[width], className]}>
+  <slot />
+</Tag>

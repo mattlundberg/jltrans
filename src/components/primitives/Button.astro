@@ -1,0 +1,64 @@
+---
+/**
+ * Link or button, one visual system.
+ *
+ * Renders an `<a>` when given `href` and a `<button>` otherwise, so the element
+ * always matches its behaviour — a clickable div is never the right answer.
+ */
+interface Props {
+  href?: string;
+  variant?: 'primary' | 'secondary' | 'ghost';
+  size?: 'md' | 'lg';
+  type?: 'button' | 'submit';
+  /** Adds the attributes needed for an external link. */
+  external?: boolean;
+  download?: boolean;
+  class?: string;
+}
+
+const {
+  href,
+  variant = 'primary',
+  size = 'md',
+  type = 'button',
+  external = false,
+  download = false,
+  class: className = '',
+  ...rest
+} = Astro.props;
+
+const variants = {
+  primary:
+    'bg-(--accent) text-(--accent-on) hover:bg-(--accent-hover) border-transparent font-semibold',
+  secondary:
+    'bg-transparent text-(--text-strong) border-(--border-strong) hover:border-(--accent) hover:text-(--accent) font-semibold',
+  ghost:
+    'bg-transparent text-(--accent) border-transparent hover:bg-(--accent-subtle-bg) font-semibold',
+} as const;
+
+const sizes = {
+  md: 'px-5 py-2.5 text-sm',
+  lg: 'px-7 py-3.5 text-base',
+} as const;
+
+const classes = [
+  'inline-flex items-center justify-center gap-2 rounded-full border transition-colors duration-150',
+  variants[variant],
+  sizes[size],
+  className,
+];
+
+const externalAttrs = external ? { target: '_blank', rel: 'noopener noreferrer' } : {};
+---
+
+{
+  href ? (
+    <a href={href} class:list={classes} download={download || undefined} {...externalAttrs} {...rest}>
+      <slot />
+    </a>
+  ) : (
+    <button type={type} class:list={classes} {...rest}>
+      <slot />
+    </button>
+  )
+}

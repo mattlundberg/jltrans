@@ -1,0 +1,100 @@
+---
+import PageLayout from '../layouts/PageLayout.astro';
+import Container from '../components/primitives/Container.astro';
+import SectionHeading from '../components/primitives/SectionHeading.astro';
+import FormCard from '../components/cards/FormCard.astro';
+import PdfCard from '../components/cards/PdfCard.astro';
+import Icon from '../components/primitives/Icon.astro';
+import Button from '../components/primitives/Button.astro';
+import { applicationForms, documents, site } from '../data/site';
+import { telHref } from '../lib/format';
+
+const customerForms = applicationForms.filter((f) => f.audience === 'customers');
+const driverForms = applicationForms.filter((f) => f.audience === 'drivers');
+---
+
+<PageLayout
+  title="Forms & Documents"
+  kicker="Forms"
+  description="Download or complete the J & L Transportation forms you need — credit application, bill of lading, claim form, circular rules, driver and employment applications."
+  lead="Download or complete the forms you need."
+>
+  <Container class="py-section">
+    <div class="flex flex-col gap-16">
+      <section>
+        <SectionHeading as="h2" kicker="For customers" title="Open an account or file a claim" />
+        <ul class="mt-8 grid gap-6 sm:grid-cols-2">
+          {
+            customerForms.map((form) => (
+              <FormCard
+                title={form.title}
+                description={form.description}
+                href={form.href}
+                audience={form.audience}
+              />
+            ))
+          }
+        </ul>
+      </section>
+
+      <section>
+        <SectionHeading as="h2" kicker="Join us" title="Driver and employment applications">
+          <p>
+            Applying to drive for J&amp;L, or for an office or shop position? Start here.
+          </p>
+        </SectionHeading>
+        <ul class="mt-8 grid gap-6 sm:grid-cols-2">
+          {
+            driverForms.map((form) => (
+              <FormCard
+                title={form.title}
+                description={form.description}
+                href={form.href}
+                audience={form.audience}
+              />
+            ))
+          }
+        </ul>
+      </section>
+
+      <section>
+        <SectionHeading as="h2" kicker="Reference" title="Documents and certificates">
+          <p>
+            Download any of these directly. Every file is served over HTTPS from our own site.
+          </p>
+        </SectionHeading>
+        <ul class="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          {
+            documents.map((doc) => (
+              <PdfCard
+                title={doc.title}
+                description={doc.description}
+                file={doc.file}
+                stale={'stale' in doc ? doc.stale : false}
+              />
+            ))
+          }
+        </ul>
+      </section>
+
+      <aside
+        class="flex flex-col gap-4 rounded-(--radius-card) border border-(--border-subtle) bg-(--surface-sunken) p-6 sm:flex-row sm:items-center sm:justify-between sm:p-8"
+      >
+        <div class="flex gap-4">
+          <Icon name="phone" size={22} class="mt-1 text-(--accent)" />
+          <div>
+            <h2 class="font-bold text-(--text-strong)">Need a form we don't list?</h2>
+            <p class="mt-1 text-sm leading-relaxed text-(--text-body)">
+              Call us and we will email or fax it straight to you. Rate sheets are available in Excel
+              format on request.
+            </p>
+          </div>
+        </div>
+        <Button href={`tel:${telHref(site.phone)}`} class="shrink-0">
+          <Icon name="phone" size={16} />
+          {site.phone}
+        </Button>
+      </aside>
+    </div>
+  </Container>
+</PageLayout>

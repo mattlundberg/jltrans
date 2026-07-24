@@ -1,0 +1,86 @@
+---
+import Container from '../primitives/Container.astro';
+import Button from '../primitives/Button.astro';
+import Icon from '../primitives/Icon.astro';
+import { site } from '../../data/site';
+import { telHref } from '../../lib/format';
+
+/**
+ * Home page hero.
+ *
+ * Typographic rather than photographic for now. The design direction calls for
+ * photography, but the only available images sit on the compromised server and
+ * are 2014-era staff headshots — not hero material. `backgroundImage` is the
+ * seam for a real licensed photo of the fleet; until one exists, a layered
+ * gradient carries the weight rather than a stretched low-resolution JPEG.
+ */
+interface Props {
+  /** Path to a hero image once the client supplies one. */
+  backgroundImage?: string;
+}
+
+const { backgroundImage } = Astro.props;
+---
+
+<section class="relative isolate overflow-hidden bg-(--color-navy-900) text-white">
+  {
+    backgroundImage ? (
+      <img
+        src={backgroundImage}
+        alt=""
+        class="absolute inset-0 -z-10 h-full w-full object-cover opacity-40"
+        aria-hidden="true"
+      />
+    ) : (
+      <div class="absolute inset-0 -z-10" aria-hidden="true">
+        <div
+          class="absolute inset-0"
+          style="background:
+            radial-gradient(80rem 40rem at 15% -10%, color-mix(in oklab, var(--color-fleet-500) 34%, transparent), transparent 60%),
+            radial-gradient(60rem 34rem at 100% 0%, color-mix(in oklab, var(--color-navy-500) 45%, transparent), transparent 65%);"
+        >
+        </div>
+        <!-- Faint diagonal ruling — suggests movement without competing with the type. -->
+        <div
+          class="absolute inset-0 opacity-[0.07]"
+          style="background-image: repeating-linear-gradient(115deg, #fff 0 1px, transparent 1px 12px);"
+        >
+        </div>
+      </div>
+    )
+  }
+
+  <Container class="relative py-20 sm:py-28 lg:py-36">
+    <div class="flex max-w-3xl flex-col gap-7">
+      <p
+        class="inline-flex w-fit items-center gap-2 rounded-full border border-white/20 bg-white/5 px-4 py-1.5 text-xs font-semibold tracking-[0.12em] uppercase text-(--color-fleet-200)"
+      >
+        <span class="relative flex h-1.5 w-1.5">
+          <span class="absolute inline-flex h-full w-full rounded-full bg-(--color-fleet-300)"></span>
+        </span>
+        Intermodal &middot; Drayage &middot; Truckload
+      </p>
+
+      <h1 class="text-hero font-extrabold text-white">
+        Arizona&rsquo;s premier
+        <span class="text-(--color-fleet-300)">intermodal</span> carrier.
+      </h1>
+
+      <p class="max-w-2xl text-lg leading-relaxed text-(--color-navy-100) sm:text-xl">
+        A green fleet running 24 hours a day, seven days a week, across Arizona, Northern Nevada and
+        Sonora, Mexico &mdash; with freight claims under 0.1% over the last three years.
+      </p>
+
+      <div class="flex flex-wrap items-center gap-3">
+        <Button href="/contact/" size="lg">
+          Get in touch
+          <Icon name="arrow-right" size={18} />
+        </Button>
+        <Button href={`tel:${telHref(site.phone)}`} size="lg" variant="secondary" class="border-white/30 text-white hover:border-(--color-fleet-300) hover:text-(--color-fleet-300)">
+          <Icon name="phone" size={16} />
+          {site.phone}
+        </Button>
+      </div>
+    </div>
+  </Container>
+</section>

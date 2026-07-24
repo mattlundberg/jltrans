@@ -1,0 +1,8 @@
+# Copy to .dev.vars for local development with `npm run preview`.
+# .dev.vars is gitignored and must never be committed.
+#
+# Shared password handed out by J&L for the "Do I Work" page.
+DO_I_WORK_PASSWORD=change-me-locally
+# Independent key used to sign the session cookie. Generate with:
+#   node -e "console.log(crypto.randomBytes(32).toString('hex'))"
+AUTH_SECRET=0000000000000000000000000000000000000000000000000000000000000000

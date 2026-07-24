@@ -1,0 +1,36 @@
+---
+import { getCollection, render } from 'astro:content';
+import PageLayout from '../layouts/PageLayout.astro';
+import Container from '../components/primitives/Container.astro';
+import TeamCard from '../components/cards/TeamCard.astro';
+
+const members = (await getCollection('team')).sort((a, b) => a.data.order - b.data.order);
+
+const rendered = await Promise.all(
+  members.map(async (member) => ({ member, Content: (await render(member)).Content }))
+);
+---
+
+<PageLayout
+  title="Our Team"
+  kicker="Our team"
+  description="The principals and management team behind J & L Transportation, with combined transportation experience across dispatch, operations, safety and accounting."
+  lead="J&L Transportation's principals and management team have extraordinary combined transportation experience."
+>
+  <Container class="py-section">
+    <ul class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+      {
+        rendered.map(({ member, Content }) => (
+          <TeamCard
+            name={member.data.name}
+            role={member.data.role}
+            location={member.data.location}
+            photo={member.data.photo}
+          >
+            <Content />
+          </TeamCard>
+        ))
+      }
+    </ul>
+  </Container>
+</PageLayout>

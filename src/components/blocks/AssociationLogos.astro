@@ -1,0 +1,42 @@
+---
+import Container from '../primitives/Container.astro';
+import Icon from '../primitives/Icon.astro';
+import { memberships } from '../../data/site';
+
+/**
+ * Industry memberships.
+ *
+ * Rendered as typographic wordmarks rather than logo images: we have no licensed
+ * logo assets, and hotlinking or scraping them would be both a rights problem
+ * and an external-host dependency the spam scanner would (correctly) flag.
+ * Swap in real SVGs once the client supplies them with permission.
+ */
+---
+
+<section>
+  <Container class="py-14 sm:py-20">
+    <h2 class="text-center text-xs font-semibold tracking-[0.14em] uppercase text-(--text-muted)">
+      Proud members of
+    </h2>
+    <ul class="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      {
+        memberships.map((m) => (
+          <li>
+            <a
+              href={m.href}
+              target="_blank"
+              rel="noopener noreferrer"
+              class="flex h-full flex-col items-center justify-center gap-2 rounded-(--radius-card) border border-(--border-subtle) px-5 py-6 text-center transition-colors hover:border-(--accent)"
+            >
+              <span class="text-xl font-extrabold tracking-tight text-(--text-strong)">
+                {m.abbr}
+              </span>
+              <span class="text-xs leading-snug text-(--text-muted)">{m.name}</span>
+              <Icon name="external" size={12} class="text-(--text-muted)" />
+            </a>
+          </li>
+        ))
+      }
+    </ul>
+  </Container>
+</section>

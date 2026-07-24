@@ -1,0 +1,56 @@
+# 301 redirects from the old WordPress URLs.
+#
+# The full old URL list was captured from the previous site's REST API before
+# rebuild. The form and download pages in particular have real inbound links, so
+# these must not be dropped.
+#
+# Format: <from> <to> <status>
+
+# --- Application forms ---------------------------------------------------
+# All four currently land on the forms hub. Point each at its own hosted form
+# once the platform is chosen.
+/j-l-credit-application      /forms/  301
+/j-l-claim-form              /forms/  301
+/j-l-driver-application      /forms/  301
+/j-l-employment-application  /forms/  301
+/submit-forms                /forms/  301
+
+# --- Document downloads --------------------------------------------------
+# Straight to the PDF: these were previously wrapped in a Google Docs viewer
+# iframe served over http://.
+/download-bill-of-lading               /forms/bill-of-lading.pdf                                 301
+/download-circular-rules               /forms/circular-rules.pdf                                 301
+/download-hazmat-auth-cert             /forms/hazmat-authorization-certificate.pdf               301
+/download-interstate-commerce-cert     /forms/interstate-commerce-authorization-certificate.pdf  301
+/download-points-list                  /forms/points-list.pdf                                    301
+
+# --- Gravity Forms helper pages ------------------------------------------
+# These existed only to feed form confirmation messages and have no standalone
+# equivalent.
+/credit-ap-text       /forms/  301
+/employee-app-text    /forms/  301
+/drivers-qual-text    /forms/  301
+/empl-app-for-office-use-only  /forms/  301
+
+# --- Password-protected page ---------------------------------------------
+# The old slug carried WordPress's "-2" duplicate suffix.
+/do-i-work-2  /do-i-work  301
+
+# --- Old single-page anchors ---------------------------------------------
+# The previous site was one page with anchor navigation. Anchors are not sent to
+# the server, so these cannot be redirected server-side; they are listed for the
+# record. Anyone landing on / with a stale #anchor simply sees the home page.
+#   /#about      -> /about
+#   /#who-we-are -> /who-we-are
+#   /#our-team   -> /team
+#   /#forms      -> /forms
+#   /#contact    -> /contact
+
+# --- Compromise cleanup --------------------------------------------------
+# The old install served cloaked spam through two injected PHP endpoints. No
+# rule is needed for them here: this is a static site with no PHP runtime, so
+# every such request 404s on its own. (Cloudflare's _redirects supports only
+# 3xx status codes, so a 410 Gone is not expressible here anyway.)
+#
+# Flushing those URLs out of the search index is handled deliberately, through
+# the Search Console removals tool — see the launch checklist in the plan.

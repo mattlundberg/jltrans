@@ -1,0 +1,49 @@
+---
+import Card from '../primitives/Card.astro';
+import Icon from '../primitives/Icon.astro';
+
+/**
+ * A downloadable document.
+ *
+ * Links straight to the PDF over HTTPS. The old site wrapped each one in a
+ * `docs.google.com/viewer` iframe loaded over plain http:// — a third-party
+ * dependency, a mixed-content warning, and unusable on mobile.
+ */
+interface Props {
+  title: string;
+  description: string;
+  file: string;
+  /** Marks documents whose currency needs client confirmation. */
+  stale?: boolean;
+}
+
+const { title, description, file, stale = false } = Astro.props;
+---
+
+<Card as="li" tone="raised" interactive class="gap-3">
+  <div class="flex items-start gap-3">
+    <span
+      class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-(--accent-subtle-bg) text-(--accent-subtle-text)"
+    >
+      <Icon name="download" size={18} />
+    </span>
+    <div class="flex flex-col gap-1">
+      <h3 class="leading-tight font-bold text-(--text-strong)">
+        <a href={file} download class="after:absolute after:inset-0 after:content-['']">
+          {title}
+        </a>
+      </h3>
+      <p class="text-sm leading-relaxed text-(--text-body)">{description}</p>
+      <p class="text-[0.65rem] font-semibold tracking-[0.1em] uppercase text-(--text-muted)">
+        PDF &middot; Download
+      </p>
+      {
+        stale && (
+          <p class="mt-1 text-xs leading-relaxed text-(--color-fleet-600)">
+            Dated 2015 — pending a current copy from the client.
+          </p>
+        )
+      }
+    </div>
+  </div>
+</Card>

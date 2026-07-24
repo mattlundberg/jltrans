@@ -1,0 +1,146 @@
+---
+import Container from '../primitives/Container.astro';
+import Icon from '../primitives/Icon.astro';
+import Button from '../primitives/Button.astro';
+import { primaryNav, isCurrent } from '../../data/nav';
+import { site } from '../../data/site';
+import { telHref } from '../../lib/format';
+
+const pathname = Astro.url.pathname;
+---
+
+<header
+  class="sticky top-0 z-40 border-b border-(--border-subtle) bg-(--surface-page)/85 backdrop-blur-md"
+>
+  <Container class="flex h-16 items-center justify-between gap-4 sm:h-20">
+    <a href="/" class="group flex shrink-0 flex-col leading-none" aria-label={`${site.name} — home`}>
+      <span class="text-xl font-extrabold tracking-tight text-(--text-strong) sm:text-2xl">
+        J<span class="text-(--accent)">&amp;</span>L
+      </span>
+      <span class="text-[0.6rem] font-semibold tracking-[0.18em] uppercase text-(--text-muted)">
+        Transportation
+      </span>
+    </a>
+
+    <!-- Desktop navigation -->
+    <nav aria-label="Main" class="hidden lg:block">
+      <ul class="flex items-center gap-1">
+        {
+          primaryNav.map((item) => {
+            const current = isCurrent(item.href, pathname);
+            return (
+              <li>
+                <a
+                  href={item.href}
+                  aria-current={current ? 'page' : undefined}
+                  class:list={[
+                    'rounded-full px-4 py-2 text-sm font-semibold transition-colors',
+                    current
+                      ? 'bg-(--accent-subtle-bg) text-(--accent-subtle-text)'
+                      : 'text-(--text-body) hover:bg-(--surface-sunken) hover:text-(--text-strong)',
+                  ]}
+                >
+                  {item.label}
+                </a>
+              </li>
+            );
+          })
+        }
+      </ul>
+    </nav>
+
+    <div class="flex items-center gap-2">
+      <Button href={`tel:${telHref(site.phone)}`} variant="secondary" class="hidden sm:inline-flex">
+        <Icon name="phone" size={16} />
+        {site.phone}
+      </Button>
+
+      <!-- Mobile disclosure. A native <button> with aria-expanded; the entire
+           behaviour is the 12 lines of script below. No framework, no hydration. -->
+      <button
+        type="button"
+        id="nav-toggle"
+        aria-expanded="false"
+        aria-controls="mobile-nav"
+        class="inline-flex items-center justify-center rounded-full border border-(--border-strong) p-2.5 text-(--text-strong) lg:hidden"
+      >
+        <span class="sr-only">Toggle navigation</span>
+        <Icon name="menu" size={20} class="[[aria-expanded=true]_&]:hidden" />
+        <Icon name="close" size={20} class="hidden [[aria-expanded=true]_&]:block" />
+      </button>
+    </div>
+  </Container>
+
+  <nav
+    id="mobile-nav"
+    aria-label="Main"
+    hidden
+    class="border-t border-(--border-subtle) bg-(--surface-page) lg:hidden"
+  >
+    <Container class="py-4">
+      <ul class="flex flex-col gap-1">
+        {
+          [...primaryNav].map((item) => {
+            const current = isCurrent(item.href, pathname);
+            return (
+              <li>
+                <a
+                  href={item.href}
+                  aria-current={current ? 'page' : undefined}
+                  class:list={[
+                    'block rounded-xl px-4 py-3 text-base font-semibold',
+                    current
+                      ? 'bg-(--accent-subtle-bg) text-(--accent-subtle-text)'
+                      : 'text-(--text-body) hover:bg-(--surface-sunken)',
+                  ]}
+                >
+                  {item.label}
+                </a>
+              </li>
+            );
+          })
+        }
+        <li class="mt-2 border-t border-(--border-subtle) pt-3">
+          <a
+            href={`tel:${telHref(site.phone)}`}
+            class="flex items-center gap-2 rounded-xl px-4 py-3 font-semibold text-(--accent)"
+          >
+            <Icon name="phone" size={18} />
+            {site.phone}
+          </a>
+        </li>
+      </ul>
+    </Container>
+  </nav>
+</header>
+
+<script>
+  const toggle = document.getElementById('nav-toggle');
+  const panel = document.getElementById('mobile-nav');
+
+  if (toggle && panel) {
+    const setOpen = (open: boolean) => {
+      toggle.setAttribute('aria-expanded', String(open));
+      panel.hidden = !open;
+    };
+
+    toggle.addEventListener('click', () => {
+      setOpen(toggle.getAttribute('aria-expanded') !== 'true');
+    });
+
+    // Escape closes and returns focus to the trigger, so keyboard users are
+    // never stranded inside an open panel.
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && toggle.getAttribute('aria-expanded') === 'true') {
+        setOpen(false);
+        toggle.focus();
+      }
+    });
+
+    // Reset on resize into the desktop breakpoint, otherwise `hidden` can
+    // persist inconsistently with the visible layout.
+    window.matchMedia('(min-width: 1024px)').addEventListener('change', (event) => {
+      if (event.matches) setOpen(false);
+    });
+  }
+</script>

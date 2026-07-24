@@ -1,0 +1,64 @@
+---
+/**
+ * Kicker + heading + optional intro. Used ~12 times across the site, which is
+ * what earns it a component: it keeps vertical rhythm and heading scale
+ * identical everywhere instead of drifting per section.
+ */
+interface Props {
+  /** Small label above the heading. */
+  kicker?: string;
+  title: string;
+  /** Heading level — pick for document outline, not for size. */
+  as?: 'h1' | 'h2' | 'h3';
+  align?: 'start' | 'center';
+  /** Renders at hero scale. Reserved for the top of a page. */
+  size?: 'section' | 'hero';
+  id?: string;
+  class?: string;
+}
+
+const {
+  kicker,
+  title,
+  as: Tag = 'h2',
+  align = 'start',
+  size = 'section',
+  id,
+  class: className = '',
+}: Props = Astro.props;
+---
+
+<div
+  class:list={[
+    'flex flex-col gap-3',
+    align === 'center' && 'items-center text-center',
+    className,
+  ]}
+>
+  {
+    kicker && (
+      <p class="text-xs font-semibold tracking-[0.14em] uppercase text-(--accent)">{kicker}</p>
+    )
+  }
+  <Tag
+    id={id}
+    class:list={[
+      'text-(--text-strong)',
+      size === 'hero' ? 'text-hero font-extrabold' : 'text-section',
+    ]}
+  >
+    {title}
+  </Tag>
+  {
+    Astro.slots.has('default') && (
+      <div
+        class:list={[
+          'text-lg leading-relaxed text-(--text-body)',
+          align === 'center' ? 'max-w-(--container-prose)' : 'max-w-2xl',
+        ]}
+      >
+        <slot />
+      </div>
+    )
+  }
+</div>

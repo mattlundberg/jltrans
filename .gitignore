@@ -399,3 +399,33 @@ FodyWeavers.xsd
 
 # JetBrains Rider
 *.sln.iml
+
+# ---------------------------------------------------------------------------
+# Astro / Node / Cloudflare (jltrans rebuild)
+# ---------------------------------------------------------------------------
+node_modules/
+dist/
+.astro/
+.output/
+.vercel/
+.netlify/
+.wrangler/
+
+# Secrets — never commit
+.dev.vars
+.env
+.env.*
+!.env.example
+!.dev.vars.example
+
+# ---------------------------------------------------------------------------
+# Compromise evidence quarantine.
+# The old jltrans.com server served cloaked Japanese spam to search engines.
+# Captured proof (buy.html / gbot.html) is kept OUTSIDE this repo, in the
+# scratchpad, for the remediation handoff. These patterns are a backstop so a
+# stray copy can never be committed. See the "Clean-room migration" section of
+# the project plan.
+# ---------------------------------------------------------------------------
+*.evidence.html
+*.evidence.json
+/quarantine/

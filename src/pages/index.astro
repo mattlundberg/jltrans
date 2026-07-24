@@ -1,0 +1,148 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Container from '../components/primitives/Container.astro';
+import SectionHeading from '../components/primitives/SectionHeading.astro';
+import Button from '../components/primitives/Button.astro';
+import Icon from '../components/primitives/Icon.astro';
+import Hero from '../components/blocks/Hero.astro';
+import StatRow from '../components/blocks/StatRow.astro';
+import AssociationLogos from '../components/blocks/AssociationLogos.astro';
+import ServiceCard from '../components/cards/ServiceCard.astro';
+import { site, yearsInBusiness } from '../data/site';
+import { joinProse } from '../lib/format';
+
+/**
+ * Home is now an overview that links onward, rather than the single scrolling
+ * page the old site used. Each former anchor section is a real route.
+ */
+
+const differentiators = [
+  {
+    title: 'Amazing Record',
+    icon: 'shield' as const,
+    body:
+      'We pride ourselves on delivering shipments on time and safely. Decades of experience and a ' +
+      'team of skilled professionals have earned us a reputation as one of the most reliable ' +
+      'carriers in the industry.',
+  },
+  {
+    title: 'On Time Deliveries',
+    icon: 'clock' as const,
+    body:
+      'Our drivers and logistics experts work closely together so every shipment is handled with ' +
+      'care and attention — from the moment your cargo is loaded to the time it arrives.',
+  },
+  {
+    title: 'Safety First',
+    icon: 'truck' as const,
+    body:
+      'Safety is our top priority. Our trucks carry the latest safety equipment and our drivers ' +
+      'undergo rigorous training to handle any situation that arises on the road.',
+  },
+];
+---
+
+<BaseLayout
+  title="Home"
+  description={site.description}
+>
+  <Hero />
+
+  <StatRow />
+
+  <!-- Differentiators -->
+  <section>
+    <Container class="py-section">
+      <SectionHeading kicker="Why J&L" title="We make your life easier">
+        <p>
+          Three things our customers rely on, every day, across every lane we run.
+        </p>
+      </SectionHeading>
+
+      <ul class="mt-12 grid gap-6 lg:grid-cols-3">
+        {
+          differentiators.map((item) => (
+            <ServiceCard title={item.title} icon={item.icon}>
+              {item.body}
+            </ServiceCard>
+          ))
+        }
+      </ul>
+    </Container>
+  </section>
+
+  <!-- About teaser -->
+  <section class="border-y border-(--border-subtle) bg-(--surface-sunken)">
+    <Container class="py-section">
+      <div class="grid gap-12 lg:grid-cols-2 lg:items-center">
+        <SectionHeading kicker="About us" title={`${yearsInBusiness()} years of conscientious care`}>
+          <p>
+            J&amp;L Transportation was incorporated in January {site.founded} as a distribution,
+            drayage, warehouse and intermodal service provider. Prudent financial management and
+            continued customer satisfaction have made J&amp;L Arizona&rsquo;s premier intermodal
+            carrier.
+          </p>
+        </SectionHeading>
+
+        <div class="flex flex-col gap-6">
+          <dl class="flex flex-col gap-5">
+            <div>
+              <dt class="text-xs font-semibold tracking-[0.14em] uppercase text-(--accent)">
+                Drayage service area
+              </dt>
+              <dd class="mt-1 text-(--text-body)">{joinProse(site.serviceAreas.drayage)}</dd>
+            </div>
+            <div>
+              <dt class="text-xs font-semibold tracking-[0.14em] uppercase text-(--accent)">
+                Dedicated truckload fleet
+              </dt>
+              <dd class="mt-1 text-(--text-body)">{joinProse(site.serviceAreas.truckload)}</dd>
+            </div>
+            <div>
+              <dt class="text-xs font-semibold tracking-[0.14em] uppercase text-(--accent)">
+                Intermodal ramps served
+              </dt>
+              <dd class="mt-1 text-(--text-body)">{joinProse(site.ramps)}</dd>
+            </div>
+          </dl>
+
+          <div class="flex flex-wrap gap-3">
+            <Button href="/about/" variant="secondary">
+              Read our history
+              <Icon name="arrow-right" size={16} />
+            </Button>
+            <Button href="/team/" variant="ghost">Meet the team</Button>
+          </div>
+        </div>
+      </div>
+    </Container>
+  </section>
+
+  <AssociationLogos />
+
+  <!-- Closing CTA -->
+  <section class="bg-(--surface-inverse) text-(--text-on-inverse)">
+    <Container class="flex flex-col items-start gap-8 py-section lg:flex-row lg:items-center lg:justify-between">
+      <div class="flex max-w-2xl flex-col gap-3">
+        <h2 class="text-section text-white">Ready to move your freight?</h2>
+        <p class="text-lg text-(--text-muted-on-inverse)">
+          Open an account, request a rate sheet, or talk to dispatch — we answer 24 hours a day.
+        </p>
+      </div>
+      <div class="flex flex-wrap gap-3">
+        <Button href="/contact/" size="lg">
+          Contact us
+          <Icon name="arrow-right" size={18} />
+        </Button>
+        <Button
+          href="/forms/"
+          size="lg"
+          variant="secondary"
+          class="border-white/30 text-white hover:border-(--color-fleet-300) hover:text-(--color-fleet-300)"
+        >
+          Forms &amp; documents
+        </Button>
+      </div>
+    </Container>
+  </section>
+</BaseLayout>

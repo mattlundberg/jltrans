@@ -1,0 +1,225 @@
+@import 'tailwindcss';
+
+/* ==========================================================================
+   Design tokens
+   ==========================================================================
+   Every colour, radius and shadow used anywhere in the site resolves to a
+   token declared here. Components must never contain a raw hex value — that
+   is how the old site ended up with slightly different card treatments on
+   every section.
+
+   Palette rationale: deep navy/slate carries the weight and credibility a
+   carrier needs; the single green accent is drawn from J&L's own "green fleet"
+   and environmental positioning rather than being decorative. One accent only,
+   so calls to action are unambiguous.
+   ========================================================================== */
+
+@theme {
+  /* --- Brand ------------------------------------------------------------ */
+  --color-navy-50: #f2f5f9;
+  --color-navy-100: #e2e9f1;
+  --color-navy-200: #c6d4e4;
+  --color-navy-300: #9db4ce;
+  --color-navy-400: #6d8db4;
+  --color-navy-500: #4b6d99;
+  --color-navy-600: #3a567d;
+  --color-navy-700: #314665;
+  --color-navy-800: #1f2f45;
+  --color-navy-900: #16222f;
+  --color-navy-950: #0d1520;
+
+  /* Single accent — "green fleet". Mid-tones are AA on white, deep tones are
+     AA for white text, so the same ramp serves both directions. */
+  --color-fleet-50: #eefbf3;
+  --color-fleet-100: #d6f5e3;
+  --color-fleet-200: #b0e9cb;
+  --color-fleet-300: #7cd7ac;
+  --color-fleet-400: #45bd88;
+  --color-fleet-500: #1f9d6b;
+  --color-fleet-600: #137d56;
+  --color-fleet-700: #106347;
+  --color-fleet-800: #0f4f3a;
+  --color-fleet-900: #0d4131;
+  --color-fleet-950: #052419;
+
+  /* Warm neutrals — slightly warm greys read less clinical than pure grey
+     against the cool navy. */
+  --color-sand-50: #faf9f7;
+  --color-sand-100: #f4f2ee;
+  --color-sand-200: #e8e4dc;
+  --color-sand-300: #d5cfc3;
+  --color-sand-400: #b0a795;
+  --color-sand-500: #8b8271;
+
+  /* --- Type ------------------------------------------------------------- */
+  /* System font stack: zero network requests, no external font CDN, nothing
+     to sanitise. See README for how to swap in a self-hosted webfont later. */
+  --font-sans:
+    ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue',
+    Arial, 'Noto Sans', sans-serif;
+  --font-display: var(--font-sans);
+
+  --text-hero: clamp(2.25rem, 1.4rem + 3.6vw, 4.25rem);
+  --text-hero--line-height: 1.05;
+  --text-hero--letter-spacing: -0.03em;
+  --text-section: clamp(1.75rem, 1.2rem + 2vw, 2.75rem);
+  --text-section--line-height: 1.15;
+  --text-section--letter-spacing: -0.02em;
+
+  /* --- Structure -------------------------------------------------------- */
+  --radius-card: 0.875rem;
+  --shadow-card: 0 1px 2px rgb(13 21 32 / 0.04), 0 4px 16px -4px rgb(13 21 32 / 0.08);
+  --shadow-card-hover: 0 2px 4px rgb(13 21 32 / 0.06), 0 12px 32px -8px rgb(13 21 32 / 0.14);
+
+  --spacing-section: clamp(3.5rem, 2rem + 6vw, 7rem);
+  --container-content: 72rem;
+  --container-prose: 44rem;
+}
+
+/* ==========================================================================
+   Semantic surface variables
+   ==========================================================================
+   Components reference these rather than the ramps above, so light and dark
+   are defined once here instead of via `dark:` variants scattered through
+   every template.
+   ========================================================================== */
+
+@layer base {
+  :root {
+    --surface-page: var(--color-white);
+    --surface-raised: var(--color-white);
+    --surface-sunken: var(--color-sand-100);
+    --surface-inverse: var(--color-navy-900);
+
+    --text-strong: var(--color-navy-900);
+    --text-body: var(--color-navy-700);
+    --text-muted: var(--color-navy-500);
+    --text-on-inverse: var(--color-sand-100);
+    --text-muted-on-inverse: var(--color-navy-200);
+
+    --border-subtle: var(--color-sand-200);
+    --border-strong: var(--color-sand-300);
+
+    --accent: var(--color-fleet-600);
+    --accent-hover: var(--color-fleet-700);
+    --accent-on: var(--color-white);
+    --accent-subtle-bg: var(--color-fleet-50);
+    --accent-subtle-text: var(--color-fleet-800);
+
+    --focus-ring: var(--color-fleet-500);
+
+    color-scheme: light;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --surface-page: var(--color-navy-950);
+      --surface-raised: var(--color-navy-900);
+      --surface-sunken: var(--color-navy-900);
+      --surface-inverse: var(--color-navy-800);
+
+      --text-strong: var(--color-sand-50);
+      --text-body: var(--color-navy-200);
+      --text-muted: var(--color-navy-300);
+      --text-on-inverse: var(--color-sand-100);
+      --text-muted-on-inverse: var(--color-navy-200);
+
+      --border-subtle: color-mix(in oklab, var(--color-navy-700) 60%, transparent);
+      --border-strong: var(--color-navy-700);
+
+      /* Lighter accent in dark mode so it keeps 4.5:1 against the dark page. */
+      --accent: var(--color-fleet-300);
+      --accent-hover: var(--color-fleet-200);
+      --accent-on: var(--color-navy-950);
+      --accent-subtle-bg: color-mix(in oklab, var(--color-fleet-500) 15%, transparent);
+      --accent-subtle-text: var(--color-fleet-200);
+
+      --focus-ring: var(--color-fleet-300);
+
+      color-scheme: dark;
+    }
+  }
+
+  /* --- Base element styling -------------------------------------------- */
+
+  html {
+    scroll-behavior: smooth;
+    -webkit-text-size-adjust: 100%;
+    scroll-padding-top: 5rem; /* clears the sticky header on anchor jumps */
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+
+  body {
+    background-color: var(--surface-page);
+    color: var(--text-body);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    text-wrap: pretty;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    color: var(--text-strong);
+    font-weight: 700;
+    text-wrap: balance;
+  }
+
+  /* A single visible focus treatment everywhere. Never remove this without a
+     replacement — keyboard users have no other affordance. */
+  :focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+
+  /* Long tokens (email addresses, phone numbers) must not force a horizontal
+     scrollbar on narrow screens. */
+  p,
+  li,
+  dd,
+  address {
+    overflow-wrap: break-word;
+  }
+}
+
+/* ==========================================================================
+   Utilities
+   ========================================================================== */
+
+@layer utilities {
+  /* Wide content — tables, PDFs, code — scrolls inside its own container so
+     the page body never scrolls sideways. */
+  .scroll-x {
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+  }
+
+  .reveal {
+    animation: reveal-up 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  @keyframes reveal-up {
+    from {
+      opacity: 0;
+      transform: translateY(0.75rem);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+}

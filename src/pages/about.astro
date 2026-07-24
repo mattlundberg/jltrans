@@ -1,0 +1,97 @@
+---
+import PageLayout from '../layouts/PageLayout.astro';
+import Container from '../components/primitives/Container.astro';
+import SectionHeading from '../components/primitives/SectionHeading.astro';
+import Prose from '../components/primitives/Prose.astro';
+import AssociationLogos from '../components/blocks/AssociationLogos.astro';
+import { site, yearsInBusiness } from '../data/site';
+import { joinProse } from '../lib/format';
+---
+
+<PageLayout
+  title="About Us"
+  kicker="About"
+  description={`J & L Transportation was incorporated in January ${site.founded} as a distribution, drayage, warehouse and intermodal service provider serving Arizona, Nevada and Sonora, Mexico.`}
+  lead="The reasons you'll choose us for your carrier needs."
+>
+  <Container width="prose" class="py-section">
+    <div class="flex flex-col gap-14">
+      <section>
+        <SectionHeading as="h2" title="History of J & L" class="mb-5" />
+        <Prose size="lg">
+          <p>
+            J&amp;L Transportation was incorporated in January {site.founded} as a distribution,
+            drayage, warehouse, and intermodal service provider. With our customers&rsquo; support,
+            J&amp;L Transportation has experienced steady, conservative growth over the past
+            {' '}{yearsInBusiness()} years. Our commitment is to service our customers effectively and
+            economically. It has always been, and will remain, J&amp;L Transportation&rsquo;s focus
+            to recognize its customers&rsquo; needs and fulfill those needs through the highest
+            quality service.
+          </p>
+          <p>
+            J&amp;L Transportation&rsquo;s principals and management team have extraordinary combined
+            transportation experience. Detailed information on our team and their responsibilities is
+            on <a href="/team/">our team page</a>.
+          </p>
+          <p>
+            Prudent financial management and continued customer satisfaction has made J&amp;L
+            Transportation Arizona&rsquo;s premier intermodal carrier.
+          </p>
+        </Prose>
+      </section>
+
+      <section>
+        <SectionHeading as="h2" title="Current Operations" class="mb-5" />
+        <Prose size="lg">
+          <p>
+            J&amp;L Transportation operates a green fleet of company-owned trucks seven days a week,
+            on a twenty-four hour basis. All trucks are equipped with state of the art communication
+            devices for safe and complete dispatch. J&amp;L&rsquo;s safety and maintenance is handled
+            by our own mechanics at our modern, well-equipped shop, to ensure the highest standards.
+          </p>
+          <p>
+            J&amp;L Transportation&rsquo;s freight claims are less than 0.1% over the last three
+            years. Proper and safe handling of your freight is a priority at J&amp;L Transportation.
+          </p>
+          <p>
+            J&amp;L Transportation Drayage serves {joinProse(site.serviceAreas.drayage)} with our
+            &ldquo;conscientious care&rdquo; service. Our Dedicated Truck Load Fleet serves our
+            customers in {joinProse(site.serviceAreas.truckload)}. We will continue to expand as we
+            look to serve you more fully in the West.
+          </p>
+        </Prose>
+      </section>
+
+      <section>
+        <SectionHeading as="h2" kicker="Mission" title="Our Mission Statement" class="mb-5" />
+        <div
+          class="rounded-(--radius-card) border-l-4 border-(--accent) bg-(--surface-sunken) p-6 sm:p-8"
+        >
+          <Prose size="lg">
+            <p>
+              J&amp;L Transportation&rsquo;s mission is to help our customers by operating
+              environmentally friendly equipment for the highest quality freight delivery services. We
+              do so by showing great care, attention and industriousness in performing a task or role
+              at our customer&rsquo;s request.
+            </p>
+            <p>
+              We will strive to achieve extraordinary levels of client satisfaction by employing
+              highly qualified individuals, providing them with a challenging and rewarding work
+              environment responsive to their needs for balance between their professional and
+              personal lives.
+            </p>
+            <p>
+              The entire workforce of employees at J&amp;L Transportation is committed to the
+              fulfillment of our customer satisfaction goals. Everyone here at J&amp;L Transportation
+              understands that by working together, there is nothing we cannot achieve.
+            </p>
+          </Prose>
+        </div>
+      </section>
+    </div>
+  </Container>
+
+  <div class="border-t border-(--border-subtle)">
+    <AssociationLogos />
+  </div>
+</PageLayout>

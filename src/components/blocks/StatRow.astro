@@ -1,0 +1,33 @@
+---
+import Container from '../primitives/Container.astro';
+import { proofPoints } from '../../data/site';
+
+/**
+ * Verifiable proof points.
+ *
+ * This replaces the old site's "Skills We Use" progress bars — Client
+ * Satisfaction 100%, Freight Handling 99%, Safety Protocols 98%, Integrity 100%.
+ * Those numbers were invented and read as filler. Real, checkable figures are
+ * both honest and more persuasive.
+ */
+---
+
+<section class="border-y border-(--border-subtle) bg-(--surface-sunken)">
+  <Container class="py-12 sm:py-16">
+    <dl class="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
+      {
+        proofPoints.map((point) => (
+          <div class="flex flex-col gap-1.5">
+            <dt class="text-3xl font-extrabold tracking-tight text-(--accent) sm:text-4xl">
+              {point.figure}
+            </dt>
+            <dd class="flex flex-col gap-1">
+              <span class="font-semibold text-(--text-strong)">{point.label}</span>
+              <span class="text-sm leading-relaxed text-(--text-muted)">{point.detail}</span>
+            </dd>
+          </div>
+        ))
+      }
+    </dl>
+  </Container>
+</section>

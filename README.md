@@ -1,2 +1,123 @@
-# jltrans
-New Website for jltrans
+# J & L Transportation — website
+
+Rebuild of [jltrans.com](https://jltrans.com/). Astro + TypeScript + Tailwind, static, deployed
+to Cloudflare Pages.
+
+## Quick start
+
+```bash
+npm install
+npm run dev          # http://localhost:4321
+```
+
+`astro dev` covers the static pages. The one on-demand route (`/do-i-work`) needs the Cloudflare
+runtime, so exercise it with Wrangler:
+
+```bash
+cp .dev.vars.example .dev.vars   # then edit the two secrets
+npm run build
+npm run preview                  # wrangler pages dev ./dist
+```
+
+## Scripts
+
+| Command | Purpose |
+|---|---|
+| `npm run dev` | Dev server |
+| `npm run build` | Production build (runs the spam scan before and after) |
+| `npm run build:launch` | Launch build — **also fails on unresolved `TODO_CLIENT` blanks** |
+| `npm run preview` | Serve `dist/` through Wrangler, including the on-demand route |
+| `npm run check` | `astro check` — types and template diagnostics |
+| `npm run types` | Regenerate `worker-configuration.d.ts`. **Rerun after editing `wrangler.jsonc`.** |
+| `npm run scan` | Clean-room guard over `src/`, `public/`, `dist/` |
+| `npm run todos` | **The client punch-list** — every unresolved `TODO_CLIENT` and where it is |
+
+## Two things to know before editing
+
+### 1. This site replaces a compromised install
+
+The old WordPress site served cloaked Japanese counterfeit-goods spam to search engines via
+injected `buy.php` / `item.php` gateways and a rewritten `robots.txt`. Browsers saw the real
+site, which is why it went unnoticed for a long time.
+
+Consequently **nothing is copied from the old server except prose.** No PHP, no database, no
+theme or plugin directories, no `robots.txt`, no HTML lifted from old pages. Images and PDFs are
+re-encoded rather than passed through.
+
+`scripts/scan-spam.mjs` enforces this on every build (CJK codepoints, spam signatures, an
+outbound-domain allowlist, insecure `http://` subresources). If it fails, read the message
+before working around it. To allow a genuinely new external host, add it to `ALLOWED_HOSTS`
+in that file — deliberately, as a one-line reviewable change.
+
+### 2. Facts we do not have yet are loud, not blank
+
+Unresolved client details are `TODO_CLIENT('label')` in `src/data/site.ts`. They render as a
+visible `[NEEDS: label]`, never an empty string — the old site displayed a bare `Address:`
+label for years precisely because a blank looked fine.
+
+`npm run build` warns about these. `npm run build:launch` **fails** on them, so the site cannot
+go to production with a hole in it.
+
+Run `npm run todos` for the current list.
+
+## Layout
+
+```
+src/
+  data/          site.ts (single source of truth for contact details), nav.ts
+  lib/           pure TS: auth.ts, seo.ts, format.ts
+  content/       team/ faq/ news/ — Markdown, schema-validated
+  components/
+    primitives/  design-system atoms, no business knowledge
+    blocks/      composed page sections
+    cards/       five variants, all built on primitives/Card.astro
+  layouts/       BaseLayout, PageLayout
+  pages/         8 routes
+scripts/         scan-spam.mjs
+```
+
+### Conventions
+
+- **Reuse before creating.** Check `primitives/` before adding a component, `site.ts` before
+  adding a constant. All five card variants build on `primitives/Card.astro` — do not restyle a
+  card surface locally.
+- **Contact details only from `site.ts`.** Enforced in CI.
+- **Server-first.** No `client:*` directives anywhere; the mobile nav is plain `<script>` and the
+  FAQ is native `<details>`. Enforced in CI.
+- **Typed props.** Every component declares `interface Props`. No `any`.
+- **Tokens, not hex.** Colors and spacing come from the `@theme` block in
+  `src/styles/global.css`.
+- **Use the platform.** `<Image>` from `astro:assets` over hand-written `<img>`; native elements
+  over custom widgets.
+
+## Notes on the platform
+
+- **This is Cloudflare Workers, not Pages.** `@astrojs/cloudflare` v14 dropped Pages support. A
+  Pages-style `pages_build_output_dir` in `wrangler.jsonc` breaks the build, because Pages reserves
+  the `ASSETS` binding name the adapter needs.
+- **`worker-configuration.d.ts` is generated and committed**, so a fresh clone type-checks without
+  extra setup. Regenerate with `npm run types`.
+- **TypeScript is pinned to 6.x**, not 7. `@astrojs/check@0.9.9` peers on `^5 || ^6`, and TS 7
+  fails to install.
+- **Don't use `Astro.clientAddress`.** The Cloudflare adapter *throws* on access rather than
+  returning undefined, so even a `??` fallback around it causes a 500. Read `cf-connecting-ip`
+  instead — see `src/pages/do-i-work.astro`.
+- **Internal links carry a trailing slash** (`/about/`, not `/about`). The build emits directory
+  URLs — matching the old WordPress convention so inbound links keep working — and the bare form
+  costs a 307 hop on every click.
+
+## Deploy
+
+Cloudflare Workers, build command `npm run build:launch`, output `dist/`.
+
+Set secrets once (never in the repo):
+
+```bash
+npx wrangler pages secret put DO_I_WORK_PASSWORD
+npx wrangler pages secret put AUTH_SECRET     # node -e "console.log(crypto.randomBytes(32).toString('hex'))"
+```
+
+Before pointing DNS at the new site, run the launch checklist in the project plan — in
+particular the **cloaking check**: fetch every route with a Googlebot user-agent and confirm the
+response is byte-identical to a normal browser request. That is the check that surfaced the
+original compromise.

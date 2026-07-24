@@ -1,0 +1,80 @@
+---
+import { getCollection } from 'astro:content';
+import PageLayout from '../layouts/PageLayout.astro';
+import Container from '../components/primitives/Container.astro';
+import SectionHeading from '../components/primitives/SectionHeading.astro';
+import ContactBlock from '../components/blocks/ContactBlock.astro';
+import FaqAccordion from '../components/FaqAccordion.astro';
+import Button from '../components/primitives/Button.astro';
+import Icon from '../components/primitives/Icon.astro';
+import { faqJsonLd } from '../lib/seo';
+
+const faqs = (await getCollection('faq')).sort((a, b) => a.data.order - b.data.order);
+
+const jsonLd = faqJsonLd(faqs.map((f) => ({ question: f.data.question, answer: f.data.summary })));
+---
+
+<PageLayout
+  title="Contact"
+  kicker="Contact"
+  description="Contact J & L Transportation in Phoenix, Arizona. Dispatch answers 24 hours a day, seven days a week."
+  lead="Get in touch with us. Dispatch answers 24 hours a day, seven days a week."
+>
+  <script type="application/ld+json" set:html={jsonLd} is:inline slot="head" />
+
+  <Container class="py-section">
+    <div class="grid gap-14 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] lg:gap-16">
+      <div>
+        <SectionHeading as="h2" title="Contact details" class="mb-8" />
+        <ContactBlock />
+      </div>
+
+      <div>
+        <SectionHeading as="h2" title="Send us a message" class="mb-6">
+          <p>Tell us what you need and we will get back to you.</p>
+        </SectionHeading>
+
+        <!--
+          The contact form is intentionally not yet wired up. Submissions need a
+          recipient address (still outstanding from the client) and a Turnstile
+          key. Rather than ship a form that silently drops messages — the worst
+          possible failure for a contact page — this shows the working channels.
+          See the project plan, "Forms", item 3.
+        -->
+        <div
+          class="flex flex-col gap-5 rounded-(--radius-card) border border-dashed border-(--border-strong) bg-(--surface-sunken) p-6 sm:p-8"
+        >
+          <div class="flex items-start gap-3">
+            <Icon name="mail" size={22} class="mt-0.5 text-(--accent)" />
+            <div>
+              <h3 class="font-bold text-(--text-strong)">Online form coming shortly</h3>
+              <p class="mt-1 text-sm leading-relaxed text-(--text-body)">
+                We are finishing the setup on our new contact form. Until it is live, calling
+                dispatch is the fastest way to reach us — someone answers around the clock.
+              </p>
+            </div>
+          </div>
+          <div class="flex flex-wrap gap-3">
+            <Button href="/forms/" variant="secondary">
+              Forms &amp; documents
+              <Icon name="arrow-right" size={16} />
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </Container>
+
+  <section class="border-t border-(--border-subtle) bg-(--surface-sunken)">
+    <Container width="prose" class="py-section">
+      <SectionHeading as="h2" kicker="FAQs" title="Frequently asked questions" class="mb-8">
+        <p>
+          If your question is not listed, contact us and we will get an answer back to you as soon as
+          possible.
+        </p>
+      </SectionHeading>
+
+      <FaqAccordion {faqs} />
+    </Container>
+  </section>
+</PageLayout>

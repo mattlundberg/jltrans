@@ -1,0 +1,51 @@
+---
+/**
+ * The single card surface for the whole site.
+ *
+ * Every card variant (TeamCard, ServiceCard, FormCard, PdfCard, ValueCard)
+ * composes over this one. Do NOT restyle a card surface locally — the old site's
+ * visual inconsistency came from each section inventing its own treatment, and
+ * five near-identical border radii is exactly what this redesign is fixing.
+ *
+ * Only the surface lives here: background, border, radius, padding, shadow and
+ * interaction states. Semantics belong to the variant.
+ */
+interface Props {
+  /** Adds hover lift. Use for cards that are entirely a link. */
+  interactive?: boolean;
+  /** `sunken` for cards sitting on a white background; `raised` for the reverse. */
+  tone?: 'raised' | 'sunken' | 'accent';
+  as?: 'div' | 'li' | 'article' | 'a';
+  href?: string;
+  class?: string;
+}
+
+const {
+  interactive = false,
+  tone = 'raised',
+  as: Tag = 'div',
+  href,
+  class: className = '',
+  ...rest
+}: Props = Astro.props;
+
+const tones = {
+  raised: 'bg-(--surface-raised) border-(--border-subtle)',
+  sunken: 'bg-(--surface-sunken) border-(--border-subtle)',
+  accent: 'bg-(--accent-subtle-bg) border-transparent',
+} as const;
+---
+
+<Tag
+  href={href}
+  class:list={[
+    'group relative flex flex-col rounded-(--radius-card) border p-6 shadow-(--shadow-card)',
+    tones[tone],
+    interactive &&
+      'transition-[transform,box-shadow] duration-200 hover:-translate-y-0.5 hover:shadow-(--shadow-card-hover) focus-within:shadow-(--shadow-card-hover) motion-reduce:hover:translate-y-0',
+    className,
+  ]}
+  {...rest}
+>
+  <slot />
+</Tag>

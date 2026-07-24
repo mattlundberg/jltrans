@@ -1,0 +1,48 @@
+---
+import Icon from './primitives/Icon.astro';
+import Prose from './primitives/Prose.astro';
+import { render } from 'astro:content';
+import type { CollectionEntry } from 'astro:content';
+
+/**
+ * FAQ list built on native <details>/<summary>.
+ *
+ * Zero JavaScript: it is keyboard operable, screen-reader friendly, and
+ * expandable with scripting disabled — all for free from the platform. A custom
+ * accordion would need aria-expanded wiring, key handling and focus management
+ * to reach the same place.
+ */
+interface Props {
+  faqs: CollectionEntry<'faq'>[];
+}
+
+const { faqs } = Astro.props;
+
+const rendered = await Promise.all(
+  faqs.map(async (faq) => ({ faq, Content: (await render(faq)).Content }))
+);
+---
+
+<div class="divide-y divide-(--border-subtle) border-y border-(--border-subtle)">
+  {
+    rendered.map(({ faq, Content }) => (
+      <details class="group">
+        <summary
+          class="flex cursor-pointer list-none items-center justify-between gap-4 py-5 text-left font-semibold text-(--text-strong) hover:text-(--accent) [&::-webkit-details-marker]:hidden"
+        >
+          <span>{faq.data.question}</span>
+          <Icon
+            name="chevron-down"
+            size={20}
+            class="shrink-0 text-(--accent) transition-transform duration-200 group-open:rotate-180"
+          />
+        </summary>
+        <div class="pb-6">
+          <Prose>
+            <Content />
+          </Prose>
+        </div>
+      </details>
+    ))
+  }
+</div>

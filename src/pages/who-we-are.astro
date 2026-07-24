@@ -1,0 +1,83 @@
+---
+import PageLayout from '../layouts/PageLayout.astro';
+import Container from '../components/primitives/Container.astro';
+import SectionHeading from '../components/primitives/SectionHeading.astro';
+import Prose from '../components/primitives/Prose.astro';
+import ValueCard from '../components/cards/ValueCard.astro';
+import Button from '../components/primitives/Button.astro';
+import Icon from '../components/primitives/Icon.astro';
+
+/** Note: the old site's heading was misspelled "Philosphy We Strive For". */
+const values = [
+  {
+    title: 'J&L Safety',
+    body:
+      'Our goal is to instruct all our staff in the safe operation of equipment, to the ultimate ' +
+      'goal of allowing ourselves and fellow citizens sharing our roadways to arrive at their final ' +
+      'destination safe, every day.',
+  },
+  {
+    title: 'J&L Serves the Customer',
+    body:
+      'We understand that we are a service business, dedicated to getting our customers the service ' +
+      'they require without exception. Consistent with our company values, we will do whatever it ' +
+      'takes to get the job done.',
+  },
+  {
+    title: 'J&L Operates an Honest Business',
+    body:
+      'Each day we strive to be honest and upfront with our customers, vendors and fellow employees, ' +
+      'and clear about our intentions. We do not mislead our customers, vendors or fellow employees.',
+  },
+  {
+    title: 'J&L Respects Each Other',
+    body:
+      'We speak to each other in a manner consistent with this value. We do not swear, raise our ' +
+      'voices, or ever conduct ourselves in a manner inconsistent with this value.',
+  },
+];
+---
+
+<PageLayout
+  title="Who We Are"
+  kicker="Who we are"
+  description="At J&L Transportation, our employees are our greatest competitive advantage. Our core values are Safety, Customer Service, and Honest Business."
+  lead="The philosophy we strive for."
+>
+  <Container class="py-section">
+    <div class="grid gap-14 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] lg:gap-16">
+      <div>
+        <SectionHeading as="h2" title="Our greatest competitive advantage" class="mb-5" />
+        <Prose size="lg">
+          <p>
+            At J&amp;L Transportation, our employees are our greatest competitive advantage. By
+            focusing on our values, J&amp;L&rsquo;s vision gives our clients the greatest competitive
+            advantage in transportation services.
+          </p>
+          <p>
+            J&amp;L&rsquo;s core values are <strong>Safety</strong>,
+            <strong>Customer Service</strong>, and <strong>Honest Business</strong>.
+          </p>
+        </Prose>
+
+        <div class="mt-8 flex flex-wrap gap-3">
+          <Button href="/team/" variant="secondary">
+            Meet the team
+            <Icon name="arrow-right" size={16} />
+          </Button>
+          <Button href="/about/" variant="ghost">Our history</Button>
+        </div>
+      </div>
+
+      <ul class="grid gap-5 sm:grid-cols-2">
+        {
+          values.map((value, index) => (
+            <ValueCard title={value.title} index={index + 1}>
+              {value.body}
+            </ValueCard>
+          ))
+        }
+      </ul>
+    </div>
+  </Container>
+</PageLayout>

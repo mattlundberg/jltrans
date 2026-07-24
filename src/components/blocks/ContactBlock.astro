@@ -1,0 +1,117 @@
+---
+import Icon from '../primitives/Icon.astro';
+import { site, isUnresolved } from '../../data/site';
+import { telHref } from '../../lib/format';
+
+/**
+ * Contact details, rendered from src/data/site.ts.
+ *
+ * This component exists because the details appear in two places (the contact
+ * page and the footer) and on the old site they were hardcoded separately —
+ * which is how it came to display two different after-hours numbers, differing
+ * in the area code. CI fails if a phone literal appears anywhere outside
+ * site.ts, including in a comment like this one.
+ */
+interface Props {
+  /** `inverse` for the dark footer. */
+  tone?: 'default' | 'inverse';
+  class?: string;
+}
+
+const { tone = 'default', class: className = '' } = Astro.props;
+
+const labelColor = tone === 'inverse' ? 'text-(--text-muted-on-inverse)' : 'text-(--text-muted)';
+const valueColor = tone === 'inverse' ? 'text-(--text-on-inverse)' : 'text-(--text-strong)';
+const linkHover = tone === 'inverse' ? 'hover:text-(--color-fleet-300)' : 'hover:text-(--accent)';
+
+const { street, city, state, zip } = site.address;
+const hasStreet = !isUnresolved(street);
+const hasZip = !isUnresolved(zip);
+
+const rows = [
+  { icon: 'phone' as const, label: 'Phone', value: site.phone, href: `tel:${telHref(site.phone)}` },
+  {
+    icon: 'phone' as const,
+    label: 'After hours',
+    value: site.afterHours,
+    href: isUnresolved(site.afterHours) ? null : `tel:${telHref(site.afterHours)}`,
+  },
+  { icon: 'fax' as const, label: 'Fax', value: site.fax, href: null },
+  {
+    icon: 'mail' as const,
+    label: 'Email',
+    value: site.email.general,
+    href: isUnresolved(site.email.general) ? null : `mailto:${site.email.general}`,
+  },
+  {
+    icon: 'mail' as const,
+    label: 'Reno / Sparks',
+    value: site.email.reno,
+    href: isUnresolved(site.email.reno) ? null : `mailto:${site.email.reno}`,
+  },
+];
+---
+
+<div class:list={['flex flex-col gap-5', className]}>
+  <address class="flex flex-col gap-5 not-italic">
+    <div class="flex gap-3">
+      <Icon name="pin" size={18} class:list={[labelColor, 'mt-0.5']} />
+      <div class="flex flex-col gap-0.5">
+        <span class:list={['text-xs font-semibold tracking-wide uppercase', labelColor]}>
+          Address
+        </span>
+        <span class:list={['font-medium', valueColor]}>
+          {hasStreet && <>{street}<br /></>}
+          {city}, {state} {hasZip ? zip : ''}
+          {
+            /* An unresolved address renders visibly rather than as a blank line.
+               The old site showed a bare "Address:" label for years. */
+            !hasStreet && (
+              <span class="mt-1 block text-sm font-normal text-(--color-fleet-400)">
+                {street}
+              </span>
+            )
+          }
+        </span>
+      </div>
+    </div>
+
+    {
+      rows.map((row) => (
+        <div class="flex gap-3">
+          <Icon name={row.icon} size={18} class:list={[labelColor, 'mt-0.5']} />
+          <div class="flex flex-col gap-0.5">
+            <span class:list={['text-xs font-semibold tracking-wide uppercase', labelColor]}>
+              {row.label}
+            </span>
+            {row.href ? (
+              <a
+                href={row.href}
+                class:list={['font-medium underline-offset-4 hover:underline', valueColor, linkHover]}
+              >
+                {row.value}
+              </a>
+            ) : (
+              <span
+                class:list={[
+                  'font-medium',
+                  isUnresolved(row.value) ? 'text-sm font-normal text-(--color-fleet-400)' : valueColor,
+                ]}
+              >
+                {row.value}
+              </span>
+            )}
+          </div>
+        </div>
+      ))
+    }
+
+    <div class="flex gap-3">
+      <Icon name="clock" size={18} class:list={[labelColor, 'mt-0.5']} />
+      <div class="flex flex-col gap-0.5">
+        <span class:list={['text-xs font-semibold tracking-wide uppercase', labelColor]}>Hours</span>
+        <span class:list={['font-medium', valueColor]}>{site.hours}</span>
+      </div>
+    </div>
+  </address>
+</div>

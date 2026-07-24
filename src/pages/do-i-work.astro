@@ -1,0 +1,184 @@
+---
+import PageLayout from '../layouts/PageLayout.astro';
+import Container from '../components/primitives/Container.astro';
+import Button from '../components/primitives/Button.astro';
+import Icon from '../components/primitives/Icon.astro';
+import {
+  sessionCookie,
+  createSessionToken,
+  verifySessionToken,
+  timingSafeEqual,
+  checkRateLimit,
+  recordFailedAttempt,
+  clearAttempts,
+} from '../lib/auth';
+import { getSecrets } from '../lib/env';
+
+/**
+ * Rendered on demand, never prerendered.
+ *
+ * This single line is what makes the gate real. On a static build the protected
+ * content would be written into dist/ and served to anyone who asked, with the
+ * password form as decoration over the top. CI asserts the marker string below
+ * does not appear in dist/.
+ */
+export const prerender = false;
+
+const { password: PASSWORD, authSecret: AUTH_SECRET } = await getSecrets();
+
+/** Misconfiguration must fail closed, never open. */
+const configured = Boolean(PASSWORD) && Boolean(AUTH_SECRET);
+
+/**
+ * Rate-limit key.
+ *
+ * Deliberately does NOT use `Astro.clientAddress`: the Cloudflare adapter
+ * *throws* ClientAddressNotAvailable on access rather than returning undefined,
+ * so even a `??` fallback around it takes the page down with a 500.
+ *
+ * Cloudflare always sets `cf-connecting-ip` in production. Locally there is no
+ * real client IP, so all requests share the 'local' bucket — fine for a
+ * throttle whose job is to blunt brute force.
+ */
+const clientIp =
+  Astro.request.headers.get('cf-connecting-ip') ??
+  Astro.request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
+  'local';
+
+let error: string | null = null;
+let authorised = false;
+
+if (configured) {
+  authorised = await verifySessionToken(AUTH_SECRET as string, Astro.cookies.get(sessionCookie.name)?.value);
+
+  if (!authorised && Astro.request.method === 'POST') {
+    const limit = checkRateLimit(clientIp);
+
+    if (!limit.allowed) {
+      error = `Too many attempts. Please try again in ${Math.ceil(limit.retryAfter / 60)} minutes.`;
+      Astro.response.headers.set('Retry-After', String(limit.retryAfter));
+    } else {
+      const submitted = String((await Astro.request.formData()).get('password') ?? '');
+
+      if (await timingSafeEqual(submitted, PASSWORD as string)) {
+        Astro.cookies.set(
+          sessionCookie.name,
+          await createSessionToken(AUTH_SECRET as string),
+          sessionCookie.options
+        );
+        clearAttempts(clientIp);
+        authorised = true;
+      } else {
+        recordFailedAttempt(clientIp);
+        // Deliberately generic: revealing whether a password was "close" or
+        // whether the page exists helps only an attacker.
+        error = 'That password is not correct.';
+      }
+    }
+  }
+}
+
+/* This route must never be indexed or cached by a shared cache. */
+Astro.response.headers.set('X-Robots-Tag', 'noindex, nofollow');
+Astro.response.headers.set('Cache-Control', 'private, no-store, max-age=0');
+---
+
+<PageLayout
+  title="Do I Work"
+  kicker="Restricted"
+  description="This page is password protected."
+  lead={authorised ? 'Employment verification.' : 'This page is password protected.'}
+  noindex
+>
+  <Container width="prose" class="py-section">
+    {
+      !configured ? (
+        <div class="rounded-(--radius-card) border border-(--border-strong) bg-(--surface-sunken) p-6 sm:p-8">
+          <h2 class="font-bold text-(--text-strong)">Not configured</h2>
+          <p class="mt-2 text-sm leading-relaxed text-(--text-body)">
+            This page requires the <code>DO_I_WORK_PASSWORD</code> and <code>AUTH_SECRET</code>
+            {' '}environment variables. Locally, copy <code>.dev.vars.example</code> to
+            {' '}<code>.dev.vars</code>. In production, set them with <code>wrangler secret put</code>.
+          </p>
+        </div>
+      ) : authorised ? (
+        <div class="flex flex-col gap-6">
+          {/*
+            DO_I_WORK_PROTECTED_CONTENT
+            ---------------------------
+            The marker above is what CI greps for in dist/ to prove this block is
+            not in the static bundle. Keep it here.
+
+            The real contents of this page were not recoverable: the old site
+            gated it behind a WordPress post password we do not have. Given the
+            name, it is most likely an employment-verification lookup.
+
+            IMPORTANT: if it turns out to hold per-person records, a single
+            shared password is the wrong access model and this needs real
+            accounts — see the project plan rather than stretching this.
+          */}
+          <div class="rounded-(--radius-card) border-l-4 border-(--accent) bg-(--accent-subtle-bg) p-6">
+            <div class="flex items-start gap-3">
+              <Icon name="check" size={20} class="mt-0.5 text-(--accent)" />
+              <div>
+                <h2 class="font-bold text-(--text-strong)">Access granted</h2>
+                <p class="mt-1 text-sm leading-relaxed text-(--text-body)">
+                  The gate is working. This placeholder stands in for the real page content, which is
+                  pending from the client along with the shared password.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <form method="POST" action="/do-i-work/logout">
+            <Button type="submit" variant="secondary">Sign out</Button>
+          </form>
+        </div>
+      ) : (
+        <div class="max-w-md">
+          <div class="flex flex-col gap-5 rounded-(--radius-card) border border-(--border-subtle) bg-(--surface-raised) p-6 shadow-(--shadow-card) sm:p-8">
+            <span class="flex h-11 w-11 items-center justify-center rounded-xl bg-(--accent-subtle-bg) text-(--accent-subtle-text)">
+              <Icon name="lock" size={22} />
+            </span>
+
+            <div>
+              <h2 class="text-xl font-bold text-(--text-strong)">Password required</h2>
+              <p class="mt-2 text-sm leading-relaxed text-(--text-body)">
+                This content is password protected. Enter the password below to view it.
+              </p>
+            </div>
+
+            <form method="POST" class="flex flex-col gap-4">
+              <div class="flex flex-col gap-1.5">
+                <label for="password" class="text-sm font-semibold text-(--text-strong)">
+                  Password
+                </label>
+                <input
+                  type="password"
+                  id="password"
+                  name="password"
+                  required
+                  autocomplete="current-password"
+                  aria-describedby={error ? 'password-error' : undefined}
+                  aria-invalid={error ? 'true' : undefined}
+                  class="rounded-xl border border-(--border-strong) bg-(--surface-page) px-4 py-2.5 text-(--text-strong) placeholder:text-(--text-muted)"
+                />
+                {error && (
+                  <p id="password-error" role="alert" class="mt-1 text-sm font-medium text-red-600 dark:text-red-400">
+                    {error}
+                  </p>
+                )}
+              </div>
+
+              <Button type="submit">Enter</Button>
+            </form>
+          </div>
+
+          <p class="mt-5 text-sm text-(--text-muted)">
+            Need the password? <a href="/contact/" class="font-semibold text-(--accent) underline-offset-4 hover:underline">Contact us</a>.
+          </p>
+        </div>
+      )
+    }
+  </Container>
+</PageLayout>

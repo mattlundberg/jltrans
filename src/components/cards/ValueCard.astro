@@ -1,0 +1,30 @@
+---
+import Card from '../primitives/Card.astro';
+import Icon from '../primitives/Icon.astro';
+
+/** One of the four J&L core values. */
+interface Props {
+  title: string;
+  /** Sequence number shown as a quiet ordinal. */
+  index: number;
+}
+
+const { title, index } = Astro.props;
+---
+
+<Card as="li" tone="sunken" class="gap-3">
+  <div class="flex items-center gap-3">
+    <span
+      class="font-mono text-xs font-bold text-(--text-muted)"
+      aria-hidden="true"
+    >
+      {String(index).padStart(2, '0')}
+    </span>
+    <span class="h-px flex-1 bg-(--border-subtle)"></span>
+    <Icon name="check" size={16} class="text-(--accent)" />
+  </div>
+  <h3 class="text-lg leading-tight font-bold text-(--text-strong)">{title}</h3>
+  <p class="text-sm leading-relaxed text-(--text-body)">
+    <slot />
+  </p>
+</Card>
