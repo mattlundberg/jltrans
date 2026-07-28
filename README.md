@@ -101,6 +101,9 @@ scripts/         scan-spam.mjs
   so do not also declare redirects in `netlify.toml` — two sources would silently disagree.
 - **Images are resized at build time.** The adapter is configured with `imageCDN: false` so Sharp
   does the work during the build rather than deferring to Netlify Image CDN at request time.
+- **Node 22 or newer.** `astro@7` requires `>=22.12.0`, so a Node 20 build fails at install. The
+  version is declared in three places that must stay in step: `engines` in `package.json`,
+  `NODE_VERSION` in `netlify.toml`, and `node-version` in `.github/workflows/ci.yml`.
 - **TypeScript is pinned to 6.x**, not 7. `@astrojs/check@0.9.9` peers on `^5 || ^6`, and TS 7
   fails to install.
 - **Don't use `Astro.clientAddress`** for the rate limiter. It is only defined on on-demand routes
@@ -117,7 +120,7 @@ scripts/         scan-spam.mjs
 
 ## Deploy
 
-Netlify. Build settings live in `netlify.toml` (publish `dist/`, Node 20), so the only things to
+Netlify. Build settings live in `netlify.toml` (publish `dist/`, Node 22), so the only things to
 do in the Netlify UI are connect the repo and set the secrets.
 
 1. **Create the site** — Netlify → Add new site → Import an existing project → this Git repo.
