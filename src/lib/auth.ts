@@ -8,11 +8,11 @@
  * site a client-side password check is theatre — the protected content would
  * ship to every visitor inside the bundle where anyone can read it.
  *
- * So the route sets `export const prerender = false`. It renders at the edge,
- * the content never enters dist/, and CI asserts that.
+ * So the route sets `export const prerender = false`. It renders on demand in a
+ * Netlify Function, the content never enters dist/, and CI asserts that.
  *
- * Uses Web Crypto only (no Node built-ins) because this runs on Cloudflare
- * Workers.
+ * Uses Web Crypto only (no Node built-ins), so nothing here is tied to a
+ * particular runtime.
  *
  * Scope note: this protects one page with one shared secret. It is NOT suitable
  * for per-person data. If the page turns out to hold individual records, the
@@ -123,10 +123,11 @@ export const sessionCookie = {
  * In-memory per-IP attempt throttle.
  *
  * Deliberately simple: it blunts casual brute forcing of a single shared
- * password. Being per-isolate, it is not a distributed guarantee — an attacker
- * spread across many edge locations gets more attempts. Upgrade to Durable
- * Objects or KV if this page ever protects something whose exposure would
- * actually hurt.
+ * password. It lives in one function instance, so it is not a distributed
+ * guarantee — attempts spread across concurrent instances, and a cold start
+ * resets the count. Move it to Netlify Blobs, or put Netlify's own rate limiting
+ * in front of the route, if this page ever protects something whose exposure
+ * would actually hurt.
  */
 const MAX_ATTEMPTS = 8;
 const WINDOW_MS = 10 * 60 * 1000;

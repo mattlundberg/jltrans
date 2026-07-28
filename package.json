@@ -14,15 +14,14 @@
     "build": "astro build",
     "postbuild": "node scripts/scan-spam.mjs dist",
     "build:launch": "node scripts/scan-spam.mjs --strict src public && astro build && node scripts/scan-spam.mjs --strict dist",
-    "preview": "astro preview",
+    "preview": "netlify dev",
     "check": "astro check",
-    "types": "wrangler types",
     "scan": "node scripts/scan-spam.mjs src public dist",
     "todos": "node scripts/scan-spam.mjs --todos-only src",
     "verify": "npm run check && npm run build"
   },
   "dependencies": {
-    "@astrojs/cloudflare": "14.1.4",
+    "@astrojs/netlify": "8.1.3",
     "@astrojs/sitemap": "3.7.3",
     "@tailwindcss/vite": "4.3.3",
     "astro": "7.1.3",
@@ -31,7 +30,7 @@
   },
   "devDependencies": {
     "@astrojs/check": "0.9.9",
-    "typescript": "6.0.3",
-    "wrangler": "4.114.0"
+    "@types/node": "24.13.3",
+    "typescript": "6.0.3"
   }
 }

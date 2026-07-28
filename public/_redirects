@@ -5,6 +5,10 @@
 # these must not be dropped.
 #
 # Format: <from> <to> <status>
+#
+# Netlify applies the FIRST matching rule in this file, and the Astro adapter
+# appends anything it needs for on-demand routes below. Keep new rules above
+# that boundary and do not duplicate them in netlify.toml.
 
 # --- Application forms ---------------------------------------------------
 # All four currently land on the forms hub. Point each at its own hosted form
@@ -49,8 +53,7 @@
 # --- Compromise cleanup --------------------------------------------------
 # The old install served cloaked spam through two injected PHP endpoints. No
 # rule is needed for them here: this is a static site with no PHP runtime, so
-# every such request 404s on its own. (Cloudflare's _redirects supports only
-# 3xx status codes, so a 410 Gone is not expressible here anyway.)
+# every such request 404s on its own.
 #
 # Flushing those URLs out of the search index is handled deliberately, through
 # the Search Console removals tool — see the launch checklist in the plan.

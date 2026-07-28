@@ -42,7 +42,7 @@ if (targets.length === 0) {
 const ROOT = process.cwd();
 
 // Directories never worth walking.
-const SKIP_DIRS = new Set(['node_modules', '.git', '.astro', '.wrangler', '.output']);
+const SKIP_DIRS = new Set(['node_modules', '.git', '.astro', '.netlify', '.output']);
 
 // Files we read as text. Anything else is treated as binary and byte-scanned
 // for CJK, because "it's only an image" is exactly how a payload gets through.
@@ -52,7 +52,7 @@ const TEXT_EXT = new Set([
 ]);
 
 // Extensionless text files that would otherwise be misread as binary.
-const TEXT_NAMES = new Set(['_redirects', '_headers', '.assetsignore', '.dev.vars.example']);
+const TEXT_NAMES = new Set(['_redirects', '_headers', '.assetsignore', '.env.example']);
 
 // This scanner necessarily contains the patterns it hunts for. Without this
 // marker it would flag itself and fail every build.

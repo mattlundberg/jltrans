@@ -1,0 +1,28 @@
+# Netlify build configuration.
+#
+# Redirects are NOT declared here. They live in `public/_redirects` (the old
+# WordPress URL map) and the Astro adapter appends its own on-demand-route
+# rules to that same file during the build. Netlify applies the first matching
+# rule, so keeping one ordered file avoids two systems disagreeing.
+#
+# Secrets are never stored here. Set DO_I_WORK_PASSWORD and AUTH_SECRET in
+# Site configuration -> Environment variables (see README).
+
+[build]
+  # The launch build also fails on unresolved TODO_CLIENT blanks, so the site
+  # cannot deploy with a hole in it. Use `npm run build` for previews if that
+  # is ever too strict for a work-in-progress branch.
+  command = "npm run build:launch"
+  publish = "dist"
+
+[build.environment]
+  # package.json engines requires >=20.11.0.
+  NODE_VERSION = "20"
+
+[[headers]]
+  # The password gate sets its own no-store headers at render time; this is the
+  # belt-and-braces version for anything Netlify serves on that path.
+  for = "/do-i-work/*"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow"
+    Cache-Control = "private, no-store, max-age=0"

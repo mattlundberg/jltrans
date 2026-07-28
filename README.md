@@ -1,22 +1,24 @@
 # J & L Transportation — website
 
 Rebuild of [jltrans.com](https://jltrans.com/). Astro + TypeScript + Tailwind, static, deployed
-to Cloudflare Pages.
+to Netlify.
 
 ## Quick start
 
 ```bash
 npm install
-npm run dev          # http://localhost:4321
+cp .env.example .env   # then edit the two secrets
+npm run dev            # http://localhost:4321
 ```
 
-`astro dev` covers the static pages. The one on-demand route (`/do-i-work`) needs the Cloudflare
-runtime, so exercise it with Wrangler:
+`astro dev` covers everything including `/do-i-work`, reading the two secrets from `.env`. To
+exercise the production shape instead — the built bundle plus the on-demand route as a real
+Netlify Function, with `_redirects` applied:
 
 ```bash
-cp .dev.vars.example .dev.vars   # then edit the two secrets
+npm i -g netlify-cli   # once
 npm run build
-npm run preview                  # wrangler pages dev ./dist
+npm run preview        # netlify dev
 ```
 
 ## Scripts
@@ -26,9 +28,8 @@ npm run preview                  # wrangler pages dev ./dist
 | `npm run dev` | Dev server |
 | `npm run build` | Production build (runs the spam scan before and after) |
 | `npm run build:launch` | Launch build — **also fails on unresolved `TODO_CLIENT` blanks** |
-| `npm run preview` | Serve `dist/` through Wrangler, including the on-demand route |
+| `npm run preview` | Serve the build through `netlify dev`, including the on-demand route |
 | `npm run check` | `astro check` — types and template diagnostics |
-| `npm run types` | Regenerate `worker-configuration.d.ts`. **Rerun after editing `wrangler.jsonc`.** |
 | `npm run scan` | Clean-room guard over `src/`, `public/`, `dist/` |
 | `npm run todos` | **The client punch-list** — every unresolved `TODO_CLIENT` and where it is |
 
@@ -92,30 +93,47 @@ scripts/         scan-spam.mjs
 
 ## Notes on the platform
 
-- **This is Cloudflare Workers, not Pages.** `@astrojs/cloudflare` v14 dropped Pages support. A
-  Pages-style `pages_build_output_dir` in `wrangler.jsonc` breaks the build, because Pages reserves
-  the `ASSETS` binding name the adapter needs.
-- **`worker-configuration.d.ts` is generated and committed**, so a fresh clone type-checks without
-  extra setup. Regenerate with `npm run types`.
+- **The adapter exists for exactly one route.** `output` is `static`; only `/do-i-work` sets
+  `prerender = false`, so the build emits plain files plus one Netlify Function. Adding a second
+  on-demand route is a deliberate decision, not a default.
+- **`_redirects` is one ordered file.** `public/_redirects` holds the old WordPress URL map and the
+  adapter *appends* its on-demand-route rules to it at build time. Netlify applies the first match,
+  so do not also declare redirects in `netlify.toml` — two sources would silently disagree.
+- **Images are resized at build time.** The adapter is configured with `imageCDN: false` so Sharp
+  does the work during the build rather than deferring to Netlify Image CDN at request time.
 - **TypeScript is pinned to 6.x**, not 7. `@astrojs/check@0.9.9` peers on `^5 || ^6`, and TS 7
   fails to install.
-- **Don't use `Astro.clientAddress`.** The Cloudflare adapter *throws* on access rather than
-  returning undefined, so even a `??` fallback around it causes a 500. Read `cf-connecting-ip`
-  instead — see `src/pages/do-i-work.astro`.
+- **Don't use `Astro.clientAddress`** for the rate limiter. It is only defined on on-demand routes
+  and its unavailable-behaviour is adapter-specific. Read `x-nf-client-connection-ip`, which Netlify
+  sets on every request — see `src/pages/do-i-work.astro`.
+- **Secrets are read in one place.** `src/lib/env.ts` is the only module that touches
+  `process.env` / `import.meta.env`.
 - **Internal links carry a trailing slash** (`/about/`, not `/about`). The build emits directory
   URLs — matching the old WordPress convention so inbound links keep working — and the bare form
   costs a 307 hop on every click.
 
 ## Deploy
 
-Cloudflare Workers, build command `npm run build:launch`, output `dist/`.
+Netlify. Build settings live in `netlify.toml` (`npm run build:launch`, publish `dist/`,
+Node 20), so the only things to do in the Netlify UI are connect the repo and set the secrets.
 
-Set secrets once (never in the repo):
+1. **Create the site** — Netlify → Add new site → Import an existing project → this Git repo.
+   Leave the build settings alone; `netlify.toml` supplies them.
+2. **Set the two secrets** — Site configuration → Environment variables. Never in the repo:
 
-```bash
-npx wrangler pages secret put DO_I_WORK_PASSWORD
-npx wrangler pages secret put AUTH_SECRET     # node -e "console.log(crypto.randomBytes(32).toString('hex'))"
-```
+   | Key | Value |
+   |---|---|
+   | `DO_I_WORK_PASSWORD` | the shared password J&L hands out |
+   | `AUTH_SECRET` | `node -e "console.log(crypto.randomBytes(32).toString('hex'))"` |
+
+   Scope them to **all deploy contexts** — production, deploy previews and branch deploys — or
+   `/do-i-work` renders its "Not configured" state there. Mark both **Secret** so the values are
+   write-only afterwards. Changing either invalidates every existing session, which is the
+   intended way to revoke access.
+3. **Deploy**, then check `/do-i-work` returns the password form (not the content) and that a
+   stale URL such as `/download-points-list` still 301s.
+4. **Custom domain** — Domain management → add `jltrans.com`. Do this before switching DNS so the
+   certificate is issued and ready.
 
 Before pointing DNS at the new site, run the launch checklist in the project plan — in
 particular the **cloaking check**: fetch every route with a Googlebot user-agent and confirm the

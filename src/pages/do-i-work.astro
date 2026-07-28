@@ -32,16 +32,16 @@ const configured = Boolean(PASSWORD) && Boolean(AUTH_SECRET);
 /**
  * Rate-limit key.
  *
- * Deliberately does NOT use `Astro.clientAddress`: the Cloudflare adapter
- * *throws* ClientAddressNotAvailable on access rather than returning undefined,
- * so even a `??` fallback around it takes the page down with a 500.
+ * Read from headers rather than `Astro.clientAddress`, which is only defined
+ * for on-demand routes and whose behaviour when unavailable is adapter-specific
+ * — a throttle is not worth risking a 500 over.
  *
- * Cloudflare always sets `cf-connecting-ip` in production. Locally there is no
- * real client IP, so all requests share the 'local' bucket — fine for a
+ * Netlify sets `x-nf-client-connection-ip` on every request. Locally there is
+ * no real client IP, so all requests share the 'local' bucket — fine for a
  * throttle whose job is to blunt brute force.
  */
 const clientIp =
-  Astro.request.headers.get('cf-connecting-ip') ??
+  Astro.request.headers.get('x-nf-client-connection-ip') ??
   Astro.request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
   'local';
 
@@ -97,8 +97,9 @@ Astro.response.headers.set('Cache-Control', 'private, no-store, max-age=0');
           <h2 class="font-bold text-(--text-strong)">Not configured</h2>
           <p class="mt-2 text-sm leading-relaxed text-(--text-body)">
             This page requires the <code>DO_I_WORK_PASSWORD</code> and <code>AUTH_SECRET</code>
-            {' '}environment variables. Locally, copy <code>.dev.vars.example</code> to
-            {' '}<code>.dev.vars</code>. In production, set them with <code>wrangler secret put</code>.
+            {' '}environment variables. Locally, copy <code>.env.example</code> to
+            {' '}<code>.env</code>. In production, set them in the Netlify site's environment
+            {' '}variables.
           </p>
         </div>
       ) : authorised ? (
