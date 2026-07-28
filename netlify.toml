@@ -9,10 +9,15 @@
 # Site configuration -> Environment variables (see README).
 
 [build]
-  # The launch build also fails on unresolved TODO_CLIENT blanks, so the site
-  # cannot deploy with a hole in it. Use `npm run build` for previews if that
-  # is ever too strict for a work-in-progress branch.
-  command = "npm run build:launch"
+  # `npm run build` warns about unresolved TODO_CLIENT blanks; `build:launch`
+  # FAILS on them. While the site is pre-launch it is deliberately the warning
+  # version, because the whole point of the scaffold is that it deploys and can
+  # be reviewed with the holes visible.
+  #
+  # AT LAUNCH: switch this to `npm run build:launch`. From then on a missing
+  # client detail breaks the deploy instead of shipping a `[NEEDS: ...]` label
+  # to the public site. Run `npm run todos` for what is outstanding.
+  command = "npm run build"
   publish = "dist"
 
 [build.environment]

@@ -1,20 +1,10 @@
 /// <reference types="astro/client" />
 
 /**
- * Secrets used by /do-i-work.
+ * The two secrets behind /do-i-work are NOT declared here.
  *
- * Declared here so both are documented and type-checked in the repo while their
- * values stay out of it. In production they are Netlify environment variables
- * reached through `process.env`; locally they come from `.env` — see
- * `src/lib/env.ts`, which is the only module that reads either.
+ * They live in the `env.schema` block in astro.config.mjs, which is what makes
+ * them runtime secrets rather than build-time inlined literals, and Astro
+ * generates their types from that. `src/lib/env.ts` is the only module that
+ * reads them.
  */
-interface ImportMetaEnv {
-  /** Shared password handed out by J&L for the "Do I Work" page. */
-  readonly DO_I_WORK_PASSWORD?: string;
-  /** Independent key used to sign the session cookie. Not the password. */
-  readonly AUTH_SECRET?: string;
-}
-
-interface ImportMeta {
-  readonly env: ImportMetaEnv;
-}

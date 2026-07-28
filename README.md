@@ -106,16 +106,19 @@ scripts/         scan-spam.mjs
 - **Don't use `Astro.clientAddress`** for the rate limiter. It is only defined on on-demand routes
   and its unavailable-behaviour is adapter-specific. Read `x-nf-client-connection-ip`, which Netlify
   sets on every request — see `src/pages/do-i-work.astro`.
-- **Secrets are read in one place.** `src/lib/env.ts` is the only module that touches
-  `process.env` / `import.meta.env`.
+- **Secrets go through `astro:env`, never `import.meta.env`.** Vite statically replaces
+  `import.meta.env.X` at build time, so reading them that way wrote both secrets as literals into
+  the built function bundle — which trips Netlify's secrets scanning and freezes the values into
+  every deploy artifact. They are declared `access: 'secret'` in `astro.config.mjs` and read at
+  request time in `src/lib/env.ts`, the only module that touches them.
 - **Internal links carry a trailing slash** (`/about/`, not `/about`). The build emits directory
   URLs — matching the old WordPress convention so inbound links keep working — and the bare form
   costs a 307 hop on every click.
 
 ## Deploy
 
-Netlify. Build settings live in `netlify.toml` (`npm run build:launch`, publish `dist/`,
-Node 20), so the only things to do in the Netlify UI are connect the repo and set the secrets.
+Netlify. Build settings live in `netlify.toml` (publish `dist/`, Node 20), so the only things to
+do in the Netlify UI are connect the repo and set the secrets.
 
 1. **Create the site** — Netlify → Add new site → Import an existing project → this Git repo.
    Leave the build settings alone; `netlify.toml` supplies them.
@@ -134,6 +137,20 @@ Node 20), so the only things to do in the Netlify UI are connect the repo and se
    stale URL such as `/download-points-list` still 301s.
 4. **Custom domain** — Domain management → add `jltrans.com`. Do this before switching DNS so the
    certificate is issued and ready.
+
+### The launch gate
+
+`netlify.toml` currently builds with `npm run build`. The difference matters:
+
+| | unresolved `TODO_CLIENT` |
+|---|---|
+| `npm run build` | warns, deploys with visible `[NEEDS: ...]` labels |
+| `npm run build:launch` | **fails the build** |
+
+Pre-launch that gate is off so the scaffold deploys and can be reviewed with its holes showing.
+**At launch, switch `netlify.toml` to `npm run build:launch`** — from then on a missing client
+detail breaks the deploy rather than shipping a `[NEEDS: ...]` label to the public site.
+`npm run todos` lists what is outstanding.
 
 Before pointing DNS at the new site, run the launch checklist in the project plan — in
 particular the **cloaking check**: fetch every route with a Googlebot user-agent and confirm the
