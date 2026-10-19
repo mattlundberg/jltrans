@@ -22,7 +22,7 @@ interface Props {
 const { backgroundImage } = Astro.props;
 ---
 
-<section class="relative isolate overflow-hidden bg-(--color-navy-900) text-white">
+<section class="relative isolate overflow-hidden bg-(--color-ink-900) text-white">
   {
     backgroundImage ? (
       <img
@@ -36,8 +36,8 @@ const { backgroundImage } = Astro.props;
         <div
           class="absolute inset-0"
           style="background:
-            radial-gradient(80rem 40rem at 15% -10%, color-mix(in oklab, var(--color-fleet-500) 34%, transparent), transparent 60%),
-            radial-gradient(60rem 34rem at 100% 0%, color-mix(in oklab, var(--color-navy-500) 45%, transparent), transparent 65%);"
+            radial-gradient(80rem 40rem at 15% -10%, color-mix(in oklab, var(--color-brand-500) 34%, transparent), transparent 60%),
+            radial-gradient(60rem 34rem at 100% 0%, color-mix(in oklab, var(--color-ink-500) 45%, transparent), transparent 65%);"
         >
         </div>
         <!-- Faint diagonal ruling — suggests movement without competing with the type. -->
@@ -53,20 +53,20 @@ const { backgroundImage } = Astro.props;
   <Container class="relative py-20 sm:py-28 lg:py-36">
     <div class="flex max-w-3xl flex-col gap-7">
       <p
-        class="inline-flex w-fit items-center gap-2 rounded-full border border-white/20 bg-white/5 px-4 py-1.5 text-xs font-semibold tracking-[0.12em] uppercase text-(--color-fleet-200)"
+        class="inline-flex w-fit items-center gap-2 rounded-full border border-white/20 bg-white/5 px-4 py-1.5 text-xs font-semibold tracking-[0.12em] uppercase text-white"
       >
         <span class="relative flex h-1.5 w-1.5">
-          <span class="absolute inline-flex h-full w-full rounded-full bg-(--color-fleet-300)"></span>
+          <span class="absolute inline-flex h-full w-full rounded-full bg-(--color-brand-500)"></span>
         </span>
         Intermodal &middot; Drayage &middot; Truckload
       </p>
 
       <h1 class="text-hero font-extrabold text-white">
         Arizona&rsquo;s premier
-        <span class="text-(--color-fleet-300)">intermodal</span> carrier.
+        <span class="text-(--color-brand-500)">intermodal</span> carrier.
       </h1>
 
-      <p class="max-w-2xl text-lg leading-relaxed text-(--color-navy-100) sm:text-xl">
+      <p class="max-w-2xl text-lg leading-relaxed text-(--color-ink-100) sm:text-xl">
         A green fleet running 24 hours a day, seven days a week, across Arizona, Northern Nevada and
         Sonora, Mexico &mdash; with freight claims under 0.1% over the last three years.
       </p>
@@ -76,7 +76,7 @@ const { backgroundImage } = Astro.props;
           Get in touch
           <Icon name="arrow-right" size={18} />
         </Button>
-        <Button href={`tel:${telHref(site.phone)}`} size="lg" variant="secondary" class="border-white/30 text-white hover:border-(--color-fleet-300) hover:text-(--color-fleet-300)">
+        <Button href={`tel:${telHref(site.phone)}`} size="lg" variant="secondary" class="border-white/30 text-white hover:border-(--color-brand-400) hover:text-(--color-brand-400)">
           <Icon name="phone" size={16} />
           {site.phone}
         </Button>

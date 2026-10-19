@@ -22,7 +22,7 @@ const { tone = 'default', class: className = '' } = Astro.props;
 
 const labelColor = tone === 'inverse' ? 'text-(--text-muted-on-inverse)' : 'text-(--text-muted)';
 const valueColor = tone === 'inverse' ? 'text-(--text-on-inverse)' : 'text-(--text-strong)';
-const linkHover = tone === 'inverse' ? 'hover:text-(--color-fleet-300)' : 'hover:text-(--accent)';
+const linkHover = tone === 'inverse' ? 'hover:text-(--color-brand-400)' : 'hover:text-(--accent)';
 
 const { street, city, state, zip } = site.address;
 const hasStreet = !isUnresolved(street);
@@ -67,7 +67,7 @@ const rows = [
             /* An unresolved address renders visibly rather than as a blank line.
                The old site showed a bare "Address:" label for years. */
             !hasStreet && (
-              <span class="mt-1 block text-sm font-normal text-(--color-fleet-400)">
+              <span class="mt-1 block text-sm font-normal text-(--color-brand-400)">
                 {street}
               </span>
             )
@@ -95,7 +95,7 @@ const rows = [
               <span
                 class:list={[
                   'font-medium',
-                  isUnresolved(row.value) ? 'text-sm font-normal text-(--color-fleet-400)' : valueColor,
+                  isUnresolved(row.value) ? 'text-sm font-normal text-(--color-brand-400)' : valueColor,
                 ]}
               >
                 {row.value}

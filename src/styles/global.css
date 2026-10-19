@@ -8,48 +8,41 @@
    is how the old site ended up with slightly different card treatments on
    every section.
 
-   Palette rationale: deep navy/slate carries the weight and credibility a
-   carrier needs; the single green accent is drawn from J&L's own "green fleet"
-   and environmental positioning rather than being decorative. One accent only,
-   so calls to action are unambiguous.
+   Palette rationale: taken straight from the J&L logo — red, black and
+   white. A near-black charcoal carries the weight and credibility a carrier
+   needs, and the logo red is the single accent. One accent only, so calls to
+   action are unambiguous.
    ========================================================================== */
 
 @theme {
   /* --- Brand ------------------------------------------------------------ */
-  --color-navy-50: #f2f5f9;
-  --color-navy-100: #e2e9f1;
-  --color-navy-200: #c6d4e4;
-  --color-navy-300: #9db4ce;
-  --color-navy-400: #6d8db4;
-  --color-navy-500: #4b6d99;
-  --color-navy-600: #3a567d;
-  --color-navy-700: #314665;
-  --color-navy-800: #1f2f45;
-  --color-navy-900: #16222f;
-  --color-navy-950: #0d1520;
+  /* Neutral charcoal ramp — the "black" of the logo, plus the light greys
+     used for page surfaces and borders. */
+  --color-ink-50: #f7f7f7;
+  --color-ink-100: #efefef;
+  --color-ink-200: #dcdcdd;
+  --color-ink-300: #c2c2c4;
+  --color-ink-400: #8f8f93;
+  --color-ink-500: #67676c;
+  --color-ink-600: #535357;
+  --color-ink-700: #404044;
+  --color-ink-800: #2a2a2d;
+  --color-ink-900: #18181a;
+  --color-ink-950: #0b0b0c;
 
-  /* Single accent — "green fleet". Mid-tones are AA on white, deep tones are
-     AA for white text, so the same ramp serves both directions. */
-  --color-fleet-50: #eefbf3;
-  --color-fleet-100: #d6f5e3;
-  --color-fleet-200: #b0e9cb;
-  --color-fleet-300: #7cd7ac;
-  --color-fleet-400: #45bd88;
-  --color-fleet-500: #1f9d6b;
-  --color-fleet-600: #137d56;
-  --color-fleet-700: #106347;
-  --color-fleet-800: #0f4f3a;
-  --color-fleet-900: #0d4131;
-  --color-fleet-950: #052419;
-
-  /* Warm neutrals — slightly warm greys read less clinical than pure grey
-     against the cool navy. */
-  --color-sand-50: #faf9f7;
-  --color-sand-100: #f4f2ee;
-  --color-sand-200: #e8e4dc;
-  --color-sand-300: #d5cfc3;
-  --color-sand-400: #b0a795;
-  --color-sand-500: #8b8271;
+  /* Single accent — the logo red. 600+ are AA for white text and AA as text
+     on white; 300–400 are AA as text on the dark surfaces. */
+  --color-brand-50: #fef2f2;
+  --color-brand-100: #fde3e3;
+  --color-brand-200: #fbcbcb;
+  --color-brand-300: #f8a5a5;
+  --color-brand-400: #f26d6d;
+  --color-brand-500: #e2363a;
+  --color-brand-600: #c8102e;
+  --color-brand-700: #a50d26;
+  --color-brand-800: #880f22;
+  --color-brand-900: #711220;
+  --color-brand-950: #3f040d;
 
   /* --- Type ------------------------------------------------------------- */
   /* System font stack: zero network requests, no external font CDN, nothing
@@ -88,53 +81,53 @@
   :root {
     --surface-page: var(--color-white);
     --surface-raised: var(--color-white);
-    --surface-sunken: var(--color-sand-100);
-    --surface-inverse: var(--color-navy-900);
+    --surface-sunken: var(--color-ink-100);
+    --surface-inverse: var(--color-ink-900);
 
-    --text-strong: var(--color-navy-900);
-    --text-body: var(--color-navy-700);
-    --text-muted: var(--color-navy-500);
-    --text-on-inverse: var(--color-sand-100);
-    --text-muted-on-inverse: var(--color-navy-200);
+    --text-strong: var(--color-ink-900);
+    --text-body: var(--color-ink-700);
+    --text-muted: var(--color-ink-500);
+    --text-on-inverse: var(--color-ink-100);
+    --text-muted-on-inverse: var(--color-ink-200);
 
-    --border-subtle: var(--color-sand-200);
-    --border-strong: var(--color-sand-300);
+    --border-subtle: var(--color-ink-200);
+    --border-strong: var(--color-ink-300);
 
-    --accent: var(--color-fleet-600);
-    --accent-hover: var(--color-fleet-700);
+    --accent: var(--color-brand-600);
+    --accent-hover: var(--color-brand-700);
     --accent-on: var(--color-white);
-    --accent-subtle-bg: var(--color-fleet-50);
-    --accent-subtle-text: var(--color-fleet-800);
+    --accent-subtle-bg: var(--color-brand-50);
+    --accent-subtle-text: var(--color-brand-800);
 
-    --focus-ring: var(--color-fleet-500);
+    --focus-ring: var(--color-brand-500);
 
     color-scheme: light;
   }
 
   @media (prefers-color-scheme: dark) {
     :root {
-      --surface-page: var(--color-navy-950);
-      --surface-raised: var(--color-navy-900);
-      --surface-sunken: var(--color-navy-900);
-      --surface-inverse: var(--color-navy-800);
+      --surface-page: var(--color-ink-950);
+      --surface-raised: var(--color-ink-900);
+      --surface-sunken: var(--color-ink-900);
+      --surface-inverse: var(--color-ink-800);
 
-      --text-strong: var(--color-sand-50);
-      --text-body: var(--color-navy-200);
-      --text-muted: var(--color-navy-300);
-      --text-on-inverse: var(--color-sand-100);
-      --text-muted-on-inverse: var(--color-navy-200);
+      --text-strong: var(--color-ink-50);
+      --text-body: var(--color-ink-200);
+      --text-muted: var(--color-ink-300);
+      --text-on-inverse: var(--color-ink-100);
+      --text-muted-on-inverse: var(--color-ink-200);
 
-      --border-subtle: color-mix(in oklab, var(--color-navy-700) 60%, transparent);
-      --border-strong: var(--color-navy-700);
+      --border-subtle: color-mix(in oklab, var(--color-ink-700) 60%, transparent);
+      --border-strong: var(--color-ink-700);
 
       /* Lighter accent in dark mode so it keeps 4.5:1 against the dark page. */
-      --accent: var(--color-fleet-300);
-      --accent-hover: var(--color-fleet-200);
-      --accent-on: var(--color-navy-950);
-      --accent-subtle-bg: color-mix(in oklab, var(--color-fleet-500) 15%, transparent);
-      --accent-subtle-text: var(--color-fleet-200);
+      --accent: var(--color-brand-400);
+      --accent-hover: var(--color-brand-300);
+      --accent-on: var(--color-ink-950);
+      --accent-subtle-bg: color-mix(in oklab, var(--color-brand-500) 15%, transparent);
+      --accent-subtle-text: var(--color-brand-200);
 
-      --focus-ring: var(--color-fleet-300);
+      --focus-ring: var(--color-brand-400);
 
       color-scheme: dark;
     }
