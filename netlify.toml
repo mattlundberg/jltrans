@@ -5,7 +5,8 @@
 # rules to that same file during the build. Netlify applies the first matching
 # rule, so keeping one ordered file avoids two systems disagreeing.
 #
-# Secrets are never stored here. Set DO_I_WORK_PASSWORD and AUTH_SECRET in
+# Secrets are never stored here. Set DO_I_WORK_PASSWORD, DO_I_WORK_EDITOR_PASSWORD
+# and AUTH_SECRET in
 # Site configuration -> Environment variables (see README).
 
 [build]

@@ -7,11 +7,11 @@ to Netlify.
 
 ```bash
 npm install
-cp .env.example .env   # then edit the two secrets
+cp .env.example .env   # then edit the secrets
 npm run dev            # http://localhost:4321
 ```
 
-`astro dev` covers everything including `/do-i-work`, reading the two secrets from `.env`. To
+`astro dev` covers everything including `/do-i-work`, reading its secrets from `.env`. To
 exercise the production shape instead — the built bundle plus the on-demand route as a real
 Netlify Function, with `_redirects` applied:
 
@@ -125,16 +125,20 @@ do in the Netlify UI are connect the repo and set the secrets.
 
 1. **Create the site** — Netlify → Add new site → Import an existing project → this Git repo.
    Leave the build settings alone; `netlify.toml` supplies them.
-2. **Set the two secrets** — Site configuration → Environment variables. Never in the repo:
+2. **Set the secrets** — Site configuration → Environment variables. Never in the repo:
 
    | Key | Value |
    |---|---|
-   | `DO_I_WORK_PASSWORD` | the shared password J&L hands out |
+   | `DO_I_WORK_PASSWORD` | the staff password J&L hands out — views the schedule |
+   | `DO_I_WORK_EDITOR_PASSWORD` | a *different* password for whoever maintains the schedule — views and edits |
    | `AUTH_SECRET` | `node -e "console.log(crypto.randomBytes(32).toString('hex'))"` |
 
+   The editor password is optional; without it (or if it matches the staff password) the page is
+   read-only. Schedule data is stored in Netlify Blobs (store `do-i-work`), which needs no setup.
+
    Scope them to **all deploy contexts** — production, deploy previews and branch deploys — or
-   `/do-i-work` renders its "Not configured" state there. Mark both **Secret** so the values are
-   write-only afterwards. Changing either invalidates every existing session, which is the
+   `/do-i-work` renders its "Not configured" state there. Mark them **Secret** so the values are
+   write-only afterwards. Changing `AUTH_SECRET` invalidates every existing session, which is the
    intended way to revoke access.
 3. **Deploy**, then check `/do-i-work` returns the password form (not the content) and that a
    stale URL such as `/download-points-list` still 301s.

@@ -11,8 +11,27 @@ import {
   checkRateLimit,
   recordFailedAttempt,
   clearAttempts,
+  type Role,
 } from '../lib/auth';
 import { getSecrets } from '../lib/env';
+import {
+  DAYS,
+  DAY_LABELS,
+  BLANK_ROWS,
+  LIMITS,
+  loadSchedule,
+  saveSchedule,
+  parseScheduleForm,
+  emptySchedule,
+  weekDates,
+  mondayOf,
+  todayIso,
+  formatShort,
+  formatLong,
+  formatTimestamp,
+  type Schedule,
+  type DayOff,
+} from '../lib/schedule';
 
 /**
  * Rendered on demand, never prerendered.
@@ -24,10 +43,23 @@ import { getSecrets } from '../lib/env';
  */
 export const prerender = false;
 
-const { password: PASSWORD, authSecret: AUTH_SECRET } = await getSecrets();
+const PAGE = '/do-i-work/';
+
+const {
+  password: PASSWORD,
+  editorPassword: EDITOR_PASSWORD,
+  authSecret: AUTH_SECRET,
+} = await getSecrets();
 
 /** Misconfiguration must fail closed, never open. */
 const configured = Boolean(PASSWORD) && Boolean(AUTH_SECRET);
+
+/**
+ * Editing is enabled only by a distinct editor password. If someone sets it to
+ * the staff password, every staff member would silently become an editor — so
+ * that case disables editing instead.
+ */
+const editingEnabled = Boolean(EDITOR_PASSWORD) && EDITOR_PASSWORD !== PASSWORD;
 
 /**
  * Rate-limit key.
@@ -45,30 +77,84 @@ const clientIp =
   Astro.request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
   'local';
 
+/* This route must never be indexed or cached by a shared cache. */
+Astro.response.headers.set('X-Robots-Tag', 'noindex, nofollow');
+Astro.response.headers.set('Cache-Control', 'private, no-store, max-age=0');
+
 let error: string | null = null;
-let authorised = false;
+let role: Role | null = null;
+
+/** Set when a save is refused, so the editor's unsaved input is shown again rather than lost. */
+let draft: Omit<Schedule, 'updatedAt'> | null = null;
+let draftBasedOn: string | null = null;
+let saveError: string | null = null;
 
 if (configured) {
-  authorised = await verifySessionToken(AUTH_SECRET as string, Astro.cookies.get(sessionCookie.name)?.value);
+  role = await verifySessionToken(AUTH_SECRET as string, Astro.cookies.get(sessionCookie.name)?.value);
 
-  if (!authorised && Astro.request.method === 'POST') {
-    const limit = checkRateLimit(clientIp);
+  if (Astro.request.method === 'POST') {
+    const form = await Astro.request.formData();
+    const intent = String(form.get('intent') ?? 'login');
 
-    if (!limit.allowed) {
-      error = `Too many attempts. Please try again in ${Math.ceil(limit.retryAfter / 60)} minutes.`;
-      Astro.response.headers.set('Retry-After', String(limit.retryAfter));
-    } else {
-      const submitted = String((await Astro.request.formData()).get('password') ?? '');
-
-      if (await timingSafeEqual(submitted, PASSWORD as string)) {
-        Astro.cookies.set(
-          sessionCookie.name,
-          await createSessionToken(AUTH_SECRET as string),
-          sessionCookie.options
-        );
-        clearAttempts(clientIp);
-        authorised = true;
+    if (intent === 'save') {
+      if (!role) {
+        // The session expired mid-edit. The gate shows `error`, not `saveError`.
+        error = 'Your session expired before the schedule was saved. Sign in and make the changes again.';
+      } else if (role !== 'editor' || !editingEnabled) {
+        Astro.response.status = 403;
+        saveError = 'Your session does not have permission to edit. Sign in with the editor password.';
       } else {
+        const next = parseScheduleForm(form);
+        const basedOn = String(form.get('basedOn') ?? '') || null;
+
+        try {
+          const result = await saveSchedule(next, basedOn);
+          if (result.ok) return Astro.redirect(`${PAGE}?saved=1`, 303);
+
+          // Someone saved since this form was opened. Re-show this editor's
+          // input against the newer stamp: saving again is then a deliberate
+          // choice to replace the other changes.
+          const current = await loadSchedule();
+          draft = next;
+          draftBasedOn = current.updatedAt;
+          saveError = `Someone else saved the schedule${
+            current.updatedAt ? ` at ${formatTimestamp(current.updatedAt)}` : ''
+          } while you were editing. Your changes are below but have not been saved. Saving again will replace theirs.`;
+        } catch (err) {
+          console.error('do-i-work: save failed', err);
+          draft = next;
+          draftBasedOn = basedOn;
+          saveError = 'The schedule could not be saved. Please try again in a moment.';
+        }
+      }
+    } else if (!role) {
+      const limit = checkRateLimit(clientIp);
+
+      if (!limit.allowed) {
+        error = `Too many attempts. Please try again in ${Math.ceil(limit.retryAfter / 60)} minutes.`;
+        Astro.response.headers.set('Retry-After', String(limit.retryAfter));
+      } else {
+        const submitted = String(form.get('password') ?? '');
+
+        // Both comparisons always run, so response time does not reveal which
+        // password (if either) was close.
+        const [isEditor, isViewer] = await Promise.all([
+          editingEnabled ? timingSafeEqual(submitted, EDITOR_PASSWORD as string) : Promise.resolve(false),
+          timingSafeEqual(submitted, PASSWORD as string),
+        ]);
+        const granted: Role | null = isEditor ? 'editor' : isViewer ? 'viewer' : null;
+
+        if (granted) {
+          Astro.cookies.set(
+            sessionCookie.name,
+            await createSessionToken(AUTH_SECRET as string, granted),
+            sessionCookie.options
+          );
+          clearAttempts(clientIp);
+          // Redirect so a refresh does not resubmit the password.
+          return Astro.redirect(PAGE, 303);
+        }
+
         recordFailedAttempt(clientIp);
         // Deliberately generic: revealing whether a password was "close" or
         // whether the page exists helps only an attacker.
@@ -78,62 +164,473 @@ if (configured) {
   }
 }
 
-/* This route must never be indexed or cached by a shared cache. */
-Astro.response.headers.set('X-Robots-Tag', 'noindex, nofollow');
-Astro.response.headers.set('Cache-Control', 'private, no-store, max-age=0');
+const authorised = role !== null;
+const isEditor = role === 'editor' && editingEnabled;
+
+/* -------------------------------------------------------------------------- */
+/* Schedule data                                                              */
+/* -------------------------------------------------------------------------- */
+
+let schedule: Schedule = emptySchedule();
+let storageError = false;
+
+if (authorised) {
+  try {
+    schedule = await loadSchedule();
+  } catch (err) {
+    console.error('do-i-work: load failed', err);
+    storageError = true;
+  }
+}
+
+const params = Astro.url.searchParams;
+const editing = isEditor && !storageError && (params.has('edit') || draft !== null);
+const justSaved = params.has('saved') && !editing;
+
+/** What the edit form shows: the refused draft if there is one, else what is stored. */
+const formData = draft ?? schedule;
+const basedOn = draft ? draftBasedOn : schedule.updatedAt;
+
+const today = todayIso();
+const dates = weekDates(schedule.weekOf);
+const currentWeek = mondayOf(today);
+const isPastWeek = schedule.weekOf < currentWeek;
+
+const daysOffByDate = new Map<string, DayOff>(schedule.daysOff.map((d) => [d.date, d]));
+const upcomingDaysOff = schedule.daysOff.filter((d) => d.date >= today);
+
+/** Shift values that mean "not working" — rendered muted so working days stand out. */
+const isOffValue = (value: string) => /^(off|pto|vacation|holiday|sick|closed)$/i.test(value.trim());
+
+const inputClass =
+  'w-full rounded-lg border border-(--border-strong) bg-(--surface-page) px-2.5 py-1.5 text-sm text-(--text-strong) placeholder:text-(--text-muted)';
+const thClass =
+  'px-3 py-2.5 text-left text-xs font-semibold tracking-wide whitespace-nowrap uppercase text-(--text-muted)';
+const sectionTitle = 'text-xl font-bold text-(--text-strong) sm:text-2xl';
 ---
 
 <PageLayout
   title="Do I Work"
   kicker="Restricted"
   description="This page is password protected."
-  lead={authorised ? 'Employment verification.' : 'This page is password protected.'}
+  lead={authorised ? 'Weekly staff schedule and company days off.' : 'This page is password protected.'}
   noindex
 >
-  <Container width="prose" class="py-section">
+  <Container width={authorised ? (editing ? 'wide' : 'content') : 'prose'} class="py-section">
     {
       !configured ? (
         <div class="rounded-(--radius-card) border border-(--border-strong) bg-(--surface-sunken) p-6 sm:p-8">
           <h2 class="font-bold text-(--text-strong)">Not configured</h2>
           <p class="mt-2 text-sm leading-relaxed text-(--text-body)">
             This page requires the <code>DO_I_WORK_PASSWORD</code> and <code>AUTH_SECRET</code>
-            {' '}environment variables. Locally, copy <code>.env.example</code> to
-            {' '}<code>.env</code>. In production, set them in the Netlify site's environment
-            {' '}variables.
+            {' '}environment variables (plus <code>DO_I_WORK_EDITOR_PASSWORD</code> to allow
+            {' '}editing). Locally, copy <code>.env.example</code> to <code>.env</code>. In
+            {' '}production, set them in the Netlify site's environment variables.
           </p>
         </div>
       ) : authorised ? (
-        <div class="flex flex-col gap-6">
+        <div class="flex flex-col gap-10">
           {/*
             DO_I_WORK_PROTECTED_CONTENT
             ---------------------------
             The marker above is what CI greps for in dist/ to prove this block is
             not in the static bundle. Keep it here.
-
-            The real contents of this page were not recoverable: the old site
-            gated it behind a WordPress post password we do not have. Given the
-            name, it is most likely an employment-verification lookup.
-
-            IMPORTANT: if it turns out to hold per-person records, a single
-            shared password is the wrong access model and this needs real
-            accounts — see the project plan rather than stretching this.
           */}
-          <div class="rounded-(--radius-card) border-l-4 border-(--accent) bg-(--accent-subtle-bg) p-6">
-            <div class="flex items-start gap-3">
-              <Icon name="check" size={20} class="mt-0.5 text-(--accent)" />
-              <div>
-                <h2 class="font-bold text-(--text-strong)">Access granted</h2>
-                <p class="mt-1 text-sm leading-relaxed text-(--text-body)">
-                  The gate is working. This placeholder stands in for the real page content, which is
-                  pending from the client along with the shared password.
-                </p>
-              </div>
+
+          {/* --- Session bar ------------------------------------------------ */}
+          <div class="flex flex-col gap-4 border-b border-(--border-subtle) pb-6 sm:flex-row sm:items-center sm:justify-between">
+            <div class="flex flex-wrap items-center gap-3 text-sm text-(--text-muted)">
+              <span class="inline-flex items-center gap-1.5 rounded-full bg-(--accent-subtle-bg) px-3 py-1 text-xs font-semibold tracking-wide uppercase text-(--accent-subtle-text)">
+                <Icon name={isEditor ? 'shield' : 'lock'} size={14} />
+                {isEditor ? 'Editor' : 'Staff'}
+              </span>
+              {schedule.updatedAt ? (
+                <span>Last updated {formatTimestamp(schedule.updatedAt)}</span>
+              ) : (
+                <span>Not published yet</span>
+              )}
+            </div>
+
+            <div class="flex flex-wrap items-center gap-3">
+              {isEditor && !editing && !storageError && (
+                <Button href={`${PAGE}?edit=1`}>Edit schedule</Button>
+              )}
+              <form method="POST" action="/do-i-work/logout">
+                <Button type="submit" variant="secondary">Sign out</Button>
+              </form>
             </div>
           </div>
 
-          <form method="POST" action="/do-i-work/logout">
-            <Button type="submit" variant="secondary">Sign out</Button>
-          </form>
+          {justSaved && (
+            <div role="status" class="flex items-start gap-3 rounded-(--radius-card) border-l-4 border-(--accent) bg-(--accent-subtle-bg) p-5">
+              <Icon name="check" size={20} class="mt-0.5 text-(--accent)" />
+              <p class="text-sm font-medium text-(--text-strong)">Schedule saved. Staff will see these changes now.</p>
+            </div>
+          )}
+
+          {saveError && (
+            <div role="alert" class="rounded-(--radius-card) border-l-4 border-(--accent) bg-(--accent-subtle-bg) p-5">
+              <p class="text-sm font-medium text-(--text-strong)">{saveError}</p>
+            </div>
+          )}
+
+          {storageError ? (
+            <div role="alert" class="rounded-(--radius-card) border border-(--border-strong) bg-(--surface-sunken) p-6 sm:p-8">
+              <h2 class="font-bold text-(--text-strong)">Schedule unavailable</h2>
+              <p class="mt-2 text-sm leading-relaxed text-(--text-body)">
+                The schedule could not be loaded right now. Please refresh in a minute, or call
+                dispatch to confirm your shift.
+              </p>
+            </div>
+          ) : editing ? (
+            /* ================================================================
+               EDIT MODE — one plain HTML form. Blank rows at the end of each
+               table add entries; the Remove box drops one on save.
+               ================================================================ */
+            <form method="POST" action={PAGE} class="flex flex-col gap-10">
+              <input type="hidden" name="intent" value="save" />
+              <input type="hidden" name="basedOn" value={basedOn ?? ''} />
+              <input type="hidden" name="emp-count" value={formData.employees.length + BLANK_ROWS} />
+              <input type="hidden" name="off-count" value={formData.daysOff.length + BLANK_ROWS} />
+
+              <datalist id="shift-options">
+                <option value="Off" />
+                <option value="PTO" />
+                <option value="On call" />
+                <option value="6:00a–2:30p" />
+                <option value="7:00a–3:30p" />
+                <option value="8:00a–5:00p" />
+                <option value="2:00p–10:30p" />
+                <option value="10:00p–6:30a" />
+              </datalist>
+
+              <section class="flex flex-col gap-5">
+                <h2 class={sectionTitle}>Week details</h2>
+                <div class="grid gap-5 sm:grid-cols-[16rem_1fr]">
+                  <div class="flex flex-col gap-1.5">
+                    <label for="weekOf" class="text-sm font-semibold text-(--text-strong)">Week of</label>
+                    <input type="date" id="weekOf" name="weekOf" required value={formData.weekOf} class={inputClass} />
+                    <p class="text-xs text-(--text-muted)">Any date works — it snaps to that week's Monday.</p>
+                  </div>
+                  <div class="flex flex-col gap-1.5">
+                    <label for="notes" class="text-sm font-semibold text-(--text-strong)">
+                      Notes for the week <span class="font-normal text-(--text-muted)">(optional)</span>
+                    </label>
+                    <textarea id="notes" name="notes" rows="3" maxlength={LIMITS.notes} class={inputClass}>{formData.notes}</textarea>
+                  </div>
+                </div>
+              </section>
+
+              <section class="flex flex-col gap-4">
+                <div>
+                  <h2 class={sectionTitle}>Weekly schedule</h2>
+                  <p class="mt-1 text-sm text-(--text-muted)">
+                    Type a shift or pick a suggestion. Leave a day blank if it is not set. Fill in a
+                    blank row at the bottom to add someone.
+                  </p>
+                </div>
+
+                <div class="scroll-x rounded-(--radius-card) border border-(--border-subtle) bg-(--surface-raised)">
+                  <table class="w-full min-w-[68rem] border-collapse text-sm">
+                    <thead class="border-b border-(--border-subtle) bg-(--surface-sunken)">
+                      <tr>
+                        <th scope="col" class={thClass}>Name</th>
+                        <th scope="col" class={thClass}>Position</th>
+                        {DAYS.map((day) => (
+                          <th scope="col" class={thClass}>{DAY_LABELS[day]}</th>
+                        ))}
+                        <th scope="col" class={thClass}>Remove</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {[...formData.employees, ...Array.from({ length: BLANK_ROWS }, () => null)].map((emp, i) => (
+                        <tr class:list={['border-b border-(--border-subtle) last:border-b-0', !emp && 'bg-(--surface-sunken)/50']}>
+                          <td class="min-w-44 px-2 py-2">
+                            <input type="hidden" name={`emp-${i}-id`} value={emp?.id ?? ''} />
+                            <input
+                              type="text"
+                              name={`emp-${i}-name`}
+                              value={emp?.name ?? ''}
+                              maxlength={LIMITS.name}
+                              placeholder={emp ? '' : 'Add employee…'}
+                              aria-label={emp ? `Name, row ${i + 1}` : `New employee name, row ${i + 1}`}
+                              class:list={[inputClass, 'font-semibold']}
+                            />
+                          </td>
+                          <td class="min-w-36 px-2 py-2">
+                            <input
+                              type="text"
+                              name={`emp-${i}-role`}
+                              value={emp?.role ?? ''}
+                              maxlength={LIMITS.role}
+                              placeholder="e.g. Driver"
+                              aria-label={`Position, row ${i + 1}`}
+                              class={inputClass}
+                            />
+                          </td>
+                          {DAYS.map((day) => (
+                            <td class="min-w-28 px-1.5 py-2">
+                              <input
+                                type="text"
+                                name={`emp-${i}-${day}`}
+                                value={emp?.shifts[day] ?? ''}
+                                maxlength={LIMITS.shift}
+                                list="shift-options"
+                                aria-label={`${DAY_LABELS[day]}, row ${i + 1}`}
+                                class={inputClass}
+                              />
+                            </td>
+                          ))}
+                          <td class="px-3 py-2 text-center">
+                            {emp && (
+                              <input
+                                type="checkbox"
+                                name={`emp-${i}-remove`}
+                                value="1"
+                                aria-label={`Remove ${emp.name}`}
+                                class="h-4 w-4 accent-(--accent)"
+                              />
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <p class="text-xs text-(--text-muted)">
+                  Everyone with the staff password can see this page. Keep it to names, positions
+                  and shifts, with no phone numbers or other personal details.
+                </p>
+              </section>
+
+              <section class="flex flex-col gap-4">
+                <div>
+                  <h2 class={sectionTitle}>Company days off</h2>
+                  <p class="mt-1 text-sm text-(--text-muted)">
+                    Days that apply to everyone. Staff only see upcoming ones; past dates stay here
+                    until you remove them.
+                  </p>
+                </div>
+
+                <div class="scroll-x rounded-(--radius-card) border border-(--border-subtle) bg-(--surface-raised)">
+                  <table class="w-full min-w-[44rem] border-collapse text-sm">
+                    <thead class="border-b border-(--border-subtle) bg-(--surface-sunken)">
+                      <tr>
+                        <th scope="col" class={thClass}>Date</th>
+                        <th scope="col" class={thClass}>Name</th>
+                        <th scope="col" class={thClass}>Note</th>
+                        <th scope="col" class={thClass}>Remove</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {[...formData.daysOff, ...Array.from({ length: BLANK_ROWS }, () => null)].map((off, i) => (
+                        <tr class:list={['border-b border-(--border-subtle) last:border-b-0', !off && 'bg-(--surface-sunken)/50']}>
+                          <td class="w-48 px-2 py-2">
+                            <input type="hidden" name={`off-${i}-id`} value={off?.id ?? ''} />
+                            <div class="flex items-center gap-2">
+                              <input
+                                type="date"
+                                name={`off-${i}-date`}
+                                value={off?.date ?? ''}
+                                aria-label={`Date, row ${i + 1}`}
+                                class={inputClass}
+                              />
+                              {off && off.date < today && (
+                                <span class="text-xs font-semibold uppercase text-(--text-muted)">Past</span>
+                              )}
+                            </div>
+                          </td>
+                          <td class="min-w-52 px-2 py-2">
+                            <input
+                              type="text"
+                              name={`off-${i}-name`}
+                              value={off?.name ?? ''}
+                              maxlength={LIMITS.dayOffName}
+                              placeholder={off ? '' : 'e.g. Thanksgiving'}
+                              aria-label={`Name, row ${i + 1}`}
+                              class={inputClass}
+                            />
+                          </td>
+                          <td class="min-w-64 px-2 py-2">
+                            <input
+                              type="text"
+                              name={`off-${i}-note`}
+                              value={off?.note ?? ''}
+                              maxlength={LIMITS.dayOffNote}
+                              placeholder="Optional"
+                              aria-label={`Note, row ${i + 1}`}
+                              class={inputClass}
+                            />
+                          </td>
+                          <td class="px-3 py-2 text-center">
+                            {off && (
+                              <input
+                                type="checkbox"
+                                name={`off-${i}-remove`}
+                                value="1"
+                                aria-label={`Remove ${off.name}`}
+                                class="h-4 w-4 accent-(--accent)"
+                              />
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+
+              <div class="sticky bottom-0 z-10 -mx-5 flex flex-wrap items-center gap-3 border-t border-(--border-subtle) bg-(--surface-page)/90 px-5 py-4 backdrop-blur-md sm:-mx-8 sm:px-8">
+                <Button type="submit">
+                  <Icon name="check" size={16} />
+                  Save schedule
+                </Button>
+                <Button href={PAGE} variant="ghost">Cancel</Button>
+                <span class="text-xs text-(--text-muted)">
+                  To add more than {BLANK_ROWS} rows at once, save and edit again.
+                </span>
+              </div>
+            </form>
+          ) : (
+            /* ================================================================
+               VIEW MODE
+               ================================================================ */
+            <>
+              <section class="flex flex-col gap-5">
+                <div class="flex flex-col gap-1">
+                  <h2 class={sectionTitle}>Weekly schedule</h2>
+                  <p class="text-sm font-medium text-(--text-body)">Week of {formatLong(schedule.weekOf)}</p>
+                </div>
+
+                {isPastWeek && schedule.employees.length > 0 && (
+                  <p class="rounded-lg bg-(--surface-sunken) px-4 py-3 text-sm text-(--text-body)">
+                    This schedule is for a past week and has not been updated yet. Check with
+                    dispatch to confirm your shifts.
+                  </p>
+                )}
+
+                {schedule.notes && (
+                  <div class="rounded-(--radius-card) border-l-4 border-(--accent) bg-(--surface-sunken) p-5">
+                    <p class="text-xs font-semibold tracking-wide uppercase text-(--text-muted)">Notes</p>
+                    <p class="mt-1.5 text-sm leading-relaxed whitespace-pre-line text-(--text-body)">{schedule.notes}</p>
+                  </div>
+                )}
+
+                {schedule.employees.length === 0 ? (
+                  <div class="rounded-(--radius-card) border border-dashed border-(--border-strong) bg-(--surface-sunken) p-8 text-center">
+                    <Icon name="clock" size={24} class="mx-auto text-(--text-muted)" />
+                    <p class="mt-3 font-semibold text-(--text-strong)">No schedule posted yet</p>
+                    <p class="mt-1 text-sm text-(--text-muted)">
+                      {isEditor ? 'Choose Edit schedule to add employees and shifts.' : 'Check back soon, or call dispatch to confirm your shift.'}
+                    </p>
+                  </div>
+                ) : (
+                  <div class="scroll-x rounded-(--radius-card) border border-(--border-subtle) bg-(--surface-raised) shadow-(--shadow-card)">
+                    <table class="w-full min-w-[52rem] border-collapse text-sm">
+                      <caption class="sr-only">Staff schedule for the week of {formatLong(schedule.weekOf)}</caption>
+                      <thead class="border-b border-(--border-subtle) bg-(--surface-sunken)">
+                        <tr>
+                          <th scope="col" class:list={[thClass, 'sticky left-0 z-10 bg-(--surface-sunken)']}>Employee</th>
+                          {DAYS.map((day) => {
+                            const date = dates[day];
+                            const off = daysOffByDate.get(date);
+                            return (
+                              <th
+                                scope="col"
+                                class:list={[
+                                  'px-3 py-2.5 text-left align-bottom whitespace-nowrap',
+                                  off && 'bg-(--accent-subtle-bg)',
+                                ]}
+                              >
+                                <span class:list={['block text-xs font-semibold tracking-wide uppercase', date === today ? 'text-(--accent)' : 'text-(--text-muted)']}>
+                                  {DAY_LABELS[day]}
+                                  {date === today && <span class="ml-1 normal-case tracking-normal">· Today</span>}
+                                </span>
+                                <span class="block text-sm font-semibold text-(--text-strong)">{formatShort(date)}</span>
+                                {off && (
+                                  <span class="mt-0.5 block text-xs font-semibold text-(--accent-subtle-text)" title={off.name}>
+                                    Company day off
+                                  </span>
+                                )}
+                              </th>
+                            );
+                          })}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {schedule.employees.map((emp) => (
+                          <tr class="border-b border-(--border-subtle) last:border-b-0 hover:bg-(--surface-sunken)/60">
+                            <th scope="row" class="sticky left-0 z-10 min-w-40 bg-(--surface-raised) px-3 py-3 text-left font-normal">
+                              <span class="block font-semibold text-(--text-strong)">{emp.name}</span>
+                              {emp.role && <span class="block text-xs text-(--text-muted)">{emp.role}</span>}
+                            </th>
+                            {DAYS.map((day) => {
+                              const value = emp.shifts[day];
+                              const off = daysOffByDate.has(dates[day]);
+                              return (
+                                <td class:list={['px-3 py-3 whitespace-nowrap tabular-nums', off && 'bg-(--accent-subtle-bg)/60']}>
+                                  {!value ? (
+                                    <span class="text-(--text-muted)" aria-label="Not set">—</span>
+                                  ) : isOffValue(value) ? (
+                                    <span class="text-(--text-muted)">{value}</span>
+                                  ) : (
+                                    <span class="font-medium text-(--text-strong)">{value}</span>
+                                  )}
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </section>
+
+              <section class="flex flex-col gap-5">
+                <h2 class={sectionTitle}>Company days off</h2>
+
+                {upcomingDaysOff.length === 0 ? (
+                  <p class="text-sm text-(--text-muted)">No upcoming company days off.</p>
+                ) : (
+                  <div class="scroll-x rounded-(--radius-card) border border-(--border-subtle) bg-(--surface-raised) shadow-(--shadow-card)">
+                    <table class="w-full min-w-[32rem] border-collapse text-sm">
+                      <caption class="sr-only">Upcoming company days off</caption>
+                      <thead class="border-b border-(--border-subtle) bg-(--surface-sunken)">
+                        <tr>
+                          <th scope="col" class={thClass}>Date</th>
+                          <th scope="col" class={thClass}>Day off</th>
+                          <th scope="col" class={thClass}>Note</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {upcomingDaysOff.map((off) => (
+                          <tr class="border-b border-(--border-subtle) last:border-b-0">
+                            <td class="px-3 py-3 whitespace-nowrap">
+                              <span class="font-semibold text-(--text-strong)">{formatLong(off.date)}</span>
+                              {off.date === today ? (
+                                <span class="ml-2 rounded-full bg-(--accent) px-2 py-0.5 text-[0.65rem] font-semibold uppercase text-(--accent-on)">Today</span>
+                              ) : Object.values(dates).includes(off.date) ? (
+                                <span class="ml-2 rounded-full bg-(--accent-subtle-bg) px-2 py-0.5 text-[0.65rem] font-semibold uppercase text-(--accent-subtle-text)">This week</span>
+                              ) : null}
+                            </td>
+                            <td class="px-3 py-3 font-medium text-(--text-strong)">{off.name}</td>
+                            <td class="px-3 py-3 text-(--text-body)">{off.note || <span class="text-(--text-muted)">—</span>}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </section>
+
+              {!isEditor && editingEnabled && (
+                <p class="text-sm text-(--text-muted)">
+                  Maintain the schedule? Sign out, then sign in with the editor password.
+                </p>
+              )}
+            </>
+          )}
         </div>
       ) : (
         <div class="max-w-md">
@@ -145,11 +642,13 @@ Astro.response.headers.set('Cache-Control', 'private, no-store, max-age=0');
             <div>
               <h2 class="text-xl font-bold text-(--text-strong)">Password required</h2>
               <p class="mt-2 text-sm leading-relaxed text-(--text-body)">
-                This content is password protected. Enter the password below to view it.
+                Enter the staff password to see this week's schedule. Schedule editors sign in here
+                with their own password.
               </p>
             </div>
 
-            <form method="POST" class="flex flex-col gap-4">
+            <form method="POST" action={PAGE} class="flex flex-col gap-4">
+              <input type="hidden" name="intent" value="login" />
               <div class="flex flex-col gap-1.5">
                 <label for="password" class="text-sm font-semibold text-(--text-strong)">
                   Password

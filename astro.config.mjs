@@ -17,7 +17,7 @@ export default defineConfig({
     // in the build, and the served URLs stay ordinary static paths.
     imageCDN: false,
   }),
-  // The two secrets behind /do-i-work.
+  // The secrets behind /do-i-work.
   //
   // `access: 'secret'` is load-bearing, not decoration: it makes Astro read the
   // value from the environment at request time. Reading them through
@@ -29,8 +29,10 @@ export default defineConfig({
   // into a 500.
   env: {
     schema: {
-      /** Shared password handed out by J&L for the "Do I Work" page. */
+      /** Shared staff password for the "Do I Work" page. Grants read-only access. */
       DO_I_WORK_PASSWORD: envField.string({ context: 'server', access: 'secret', optional: true }),
+      /** Separate password for the people who edit the schedule. Unset means nobody can edit. */
+      DO_I_WORK_EDITOR_PASSWORD: envField.string({ context: 'server', access: 'secret', optional: true }),
       /** Independent key used to sign the session cookie. Not the password. */
       AUTH_SECRET: envField.string({ context: 'server', access: 'secret', optional: true }),
     },

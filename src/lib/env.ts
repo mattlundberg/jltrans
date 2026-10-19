@@ -14,16 +14,18 @@
  *
  * Kept async so callers do not change if this ever needs a real secret store.
  */
-import { AUTH_SECRET, DO_I_WORK_PASSWORD } from 'astro:env/server';
+import { AUTH_SECRET, DO_I_WORK_EDITOR_PASSWORD, DO_I_WORK_PASSWORD } from 'astro:env/server';
 
 export interface Secrets {
   password: string | undefined;
+  editorPassword: string | undefined;
   authSecret: string | undefined;
 }
 
 export async function getSecrets(): Promise<Secrets> {
   return {
     password: DO_I_WORK_PASSWORD,
+    editorPassword: DO_I_WORK_EDITOR_PASSWORD,
     authSecret: AUTH_SECRET,
   };
 }

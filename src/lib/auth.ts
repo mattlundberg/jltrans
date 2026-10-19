@@ -14,9 +14,14 @@
  * Uses Web Crypto only (no Node built-ins), so nothing here is tied to a
  * particular runtime.
  *
- * Scope note: this protects one page with one shared secret. It is NOT suitable
- * for per-person data. If the page turns out to hold individual records, the
- * access model needs to change to real accounts rather than be stretched.
+ * Two shared passwords: the staff password grants a `viewer` session, and a
+ * separate editor password grants an `editor` session that can change the
+ * schedule. The role travels inside the signed cookie.
+ *
+ * Scope note: shared passwords suit a staff-wide roster that everyone may see.
+ * They are NOT suitable for private per-person data (pay, contact details,
+ * reviews). If the page ever needs that, the access model needs real accounts
+ * rather than be stretched.
  */
 
 const COOKIE_NAME = 'jl_diw';
@@ -72,35 +77,49 @@ async function hmac(secret: string, message: string): Promise<string> {
 }
 
 /**
- * Builds a cookie value of `expiry.signature`.
- *
- * The expiry is inside the signed payload, so a client cannot extend its own
- * session by editing the cookie — any change invalidates the signature.
+ * Who a session belongs to. `viewer` reads the schedule; `editor` can also
+ * change it. Decided by which password was entered at the gate.
  */
-export async function createSessionToken(authSecret: string, now = Date.now()): Promise<string> {
+export type Role = 'viewer' | 'editor';
+
+const ROLES: readonly Role[] = ['viewer', 'editor'];
+
+/**
+ * Builds a cookie value of `role.expiry.signature`.
+ *
+ * Role and expiry are both inside the signed payload, so a client cannot
+ * promote itself to editor or extend its own session by editing the cookie —
+ * any change invalidates the signature.
+ */
+export async function createSessionToken(authSecret: string, role: Role, now = Date.now()): Promise<string> {
   const expiry = Math.floor(now / 1000) + SESSION_SECONDS;
-  const signature = await hmac(authSecret, String(expiry));
-  return `${expiry}.${signature}`;
+  const payload = `${role}.${expiry}`;
+  const signature = await hmac(authSecret, payload);
+  return `${payload}.${signature}`;
 }
 
-/** Verifies signature first, then expiry. Any malformed input is simply invalid. */
+/**
+ * Verifies signature first, then expiry, and returns the session's role.
+ * Any malformed, tampered or expired input is simply `null`.
+ */
 export async function verifySessionToken(
   authSecret: string,
   token: string | undefined,
   now = Date.now()
-): Promise<boolean> {
-  if (!token) return false;
+): Promise<Role | null> {
+  if (!token) return null;
   const separator = token.lastIndexOf('.');
-  if (separator <= 0) return false;
+  if (separator <= 0) return null;
 
-  const expiryPart = token.slice(0, separator);
+  const payload = token.slice(0, separator);
   const signature = token.slice(separator + 1);
-  if (!/^\d+$/.test(expiryPart)) return false;
+  const [role, expiryPart, ...rest] = payload.split('.');
+  if (rest.length || !ROLES.includes(role as Role) || !/^\d+$/.test(expiryPart ?? '')) return null;
 
-  const expected = await hmac(authSecret, expiryPart);
-  if (!(await timingSafeEqual(signature, expected))) return false;
+  const expected = await hmac(authSecret, payload);
+  if (!(await timingSafeEqual(signature, expected))) return null;
 
-  return Number(expiryPart) > Math.floor(now / 1000);
+  return Number(expiryPart) > Math.floor(now / 1000) ? (role as Role) : null;
 }
 
 export const sessionCookie = {
