@@ -96,34 +96,15 @@ export function organizationJsonLd(): string {
       name: m.name,
       url: m.href,
     })),
+    // Office hours only. Trucks also run evenings and weekends as needed, but
+    // that is not when someone answers the office.
     openingHoursSpecification: {
       '@type': 'OpeningHoursSpecification',
-      dayOfWeek: [
-        'Monday',
-        'Tuesday',
-        'Wednesday',
-        'Thursday',
-        'Friday',
-        'Saturday',
-        'Sunday',
-      ],
-      opens: '00:00',
-      closes: '23:59',
+      dayOfWeek: [...site.hours.office.days],
+      opens: site.hours.office.opens,
+      closes: site.hours.office.closes,
     },
   };
 
   return JSON.stringify(data);
-}
-
-/** FAQPage JSON-LD built from the FAQ collection. */
-export function faqJsonLd(faqs: readonly { question: string; answer: string }[]): string {
-  return JSON.stringify({
-    '@context': 'https://schema.org',
-    '@type': 'FAQPage',
-    mainEntity: faqs.map((faq) => ({
-      '@type': 'Question',
-      name: faq.question,
-      acceptedAnswer: { '@type': 'Answer', text: faq.answer },
-    })),
-  });
 }

@@ -41,7 +41,7 @@ export const site = {
   shortName: 'J&L Transportation',
   tagline: "Arizona's premier intermodal carrier",
   description:
-    'J & L Transportation is an Arizona-based intermodal, drayage, warehouse and ' +
+    'J & L Transportation is an Arizona-based intermodal, drayage and ' +
     'truckload carrier serving Arizona, Reno-Sparks Nevada, and Sonora, Mexico ' +
     'since 1987.',
   url: 'https://jltrans.com',
@@ -55,23 +55,31 @@ export const site = {
   // certainly correct — but it must be confirmed, not assumed.
   afterHours: TODO_CLIENT('after-hours phone — confirm (602) vs (601) 396-1464', '(602) 396-1464'),
 
-  // The old site rendered an empty `Address:` label on every page. There is no
-  // street address anywhere in its markup to recover.
   address: {
-    street: TODO_CLIENT('street address'),
+    street: '3226 W Durango Street',
     city: 'Phoenix',
     state: 'AZ',
-    zip: TODO_CLIENT('ZIP code'),
+    zip: '85009',
     country: 'US',
   },
 
-  // The live site exposes these only as obfuscated mailto links.
   email: {
-    general: TODO_CLIENT('main dispatch/group email address'),
-    reno: TODO_CLIENT('Reno group email address'),
+    general: 'dispatch@jltrans.com',
+    reno: 'dispatchreno@jltrans.com',
   },
 
-  hours: 'Open 24 hours a day, 7 days a week',
+  hours: {
+    /** Office hours, Arizona time. `opens`/`closes` feed the structured data. */
+    office: {
+      label: 'Monday–Friday | 6:00 AM – 5:00 PM',
+      days: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
+      opens: '06:00',
+      closes: '17:00',
+    },
+    operations:
+      "Flexible scheduling tailored to meet our customers' operational needs, including " +
+      'evenings and weekends as needed.',
+  },
 
   /** Service areas, split by the two distinct offerings in J&L's own copy. */
   serviceAreas: {
@@ -90,13 +98,10 @@ export const site = {
  * forgotten.
  */
 export const pendingClientItems = [
-  TODO_CLIENT('current team roster — bios date from 2016; confirm departures, new hires, photos'),
-  TODO_CLIENT('remainder of the May 2016 news post, or approval to retire it'),
   TODO_CLIENT('fresh HazMat + Interstate Commerce certificates — the 2015 PDFs may have expired'),
   TODO_CLIENT('confirm all four association memberships are still current'),
   TODO_CLIENT('Do I Work — page contents, audience, and the shared password'),
   TODO_CLIENT('hosted form platform decision (DOT vendor vs general builder)'),
-  TODO_CLIENT('name spellings — old site used both Micheal and Michael; verify each'),
 ] as const;
 
 /**
@@ -111,7 +116,7 @@ export const memberships = [
   },
   {
     name: 'Arizona Trucking Association',
-    abbr: 'AZTA',
+    abbr: 'ATA',
     href: 'https://www.arizonatrucking.com',
   },
   {
@@ -186,33 +191,40 @@ export const documents = [
 ] as const;
 
 /**
- * Application forms. `href` is null until the hosted form platform is chosen —
- * see the "Forms" section of the project plan. FormCard renders a clear
- * "coming soon" state rather than a dead link.
+ * Application forms, as fillable PDFs in public/forms/. The files are served
+ * exactly as supplied: re-saving a fillable PDF risks breaking its fields.
+ *
+ * A `null` href makes FormCard render a "coming soon" state rather than a dead
+ * link, for any form added before its file exists.
  */
-export const applicationForms = [
+export const applicationForms: readonly {
+  title: string;
+  description: string;
+  href: string | null;
+  pages?: number;
+  audience: 'customers' | 'drivers' | 'mechanics';
+}[] = [
   {
     title: 'Credit Application',
-    description: 'Open a account with J&L. Complete and submit online.',
-    href: null,
-    audience: 'customers',
-  },
-  {
-    title: 'Claim Form',
-    description: 'File a freight claim.',
-    href: null,
+    description: 'Open an account with J&L. Includes bank and trade references and our payment terms.',
+    href: '/forms/credit-application.pdf',
+    pages: 1,
     audience: 'customers',
   },
   {
     title: 'Driver Application',
-    description: 'Apply to drive for J&L Transportation.',
-    href: null,
+    description:
+      'Apply to drive for J&L. Includes the DOT-required authorizations, background check and Clearinghouse consent.',
+    href: '/forms/driver-application.pdf',
+    pages: 15,
     audience: 'drivers',
   },
   {
-    title: 'Employment Application',
-    description: 'Apply for an office or shop position.',
-    href: null,
-    audience: 'drivers',
+    title: 'Mechanic Application',
+    description:
+      'Apply for a heavy-duty mechanic position in our shop. Includes brake inspector qualification and background check.',
+    href: '/forms/mechanic-application.pdf',
+    pages: 11,
+    audience: 'mechanics',
   },
-] as const;
+];

@@ -67,7 +67,7 @@ Run `npm run todos` for the current list.
 src/
   data/          site.ts (single source of truth for contact details), nav.ts
   lib/           pure TS: auth.ts, seo.ts, format.ts
-  content/       team/ faq/ news/ — Markdown, schema-validated
+  content/       team/ — Markdown, schema-validated
   components/
     primitives/  design-system atoms, no business knowledge
     blocks/      composed page sections
@@ -83,8 +83,8 @@ scripts/         scan-spam.mjs
   adding a constant. All five card variants build on `primitives/Card.astro` — do not restyle a
   card surface locally.
 - **Contact details only from `site.ts`.** Enforced in CI.
-- **Server-first.** No `client:*` directives anywhere; the mobile nav is plain `<script>` and the
-  FAQ is native `<details>`. Enforced in CI.
+- **Server-first.** No `client:*` directives anywhere; the mobile nav is plain `<script>`. Enforced
+  in CI.
 - **Typed props.** Every component declares `interface Props`. No `any`.
 - **Tokens, not hex.** Colors and spacing come from the `@theme` block in
   `src/styles/global.css`.

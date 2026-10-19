@@ -10,19 +10,33 @@ import { applicationForms, documents, site } from '../data/site';
 import { telHref } from '../lib/format';
 
 const customerForms = applicationForms.filter((f) => f.audience === 'customers');
-const driverForms = applicationForms.filter((f) => f.audience === 'drivers');
+const employmentForms = applicationForms.filter((f) => f.audience !== 'customers');
+
+/**
+ * The "Documents and certificates" section is hidden until the client supplies
+ * current versions of the PDFs. Flip this back to `true` to show it again.
+ */
+const SHOW_DOCUMENTS = false;
 ---
 
 <PageLayout
   title="Forms & Documents"
   kicker="Forms"
-  description="Download or complete the J & L Transportation forms you need — credit application, bill of lading, claim form, circular rules, driver and employment applications."
-  lead="Download or complete the forms you need."
+  description="Complete the J & L Transportation forms you need — credit application, driver and mechanic applications."
+  lead="Complete the forms you need."
 >
   <Container class="py-section">
     <div class="flex flex-col gap-16">
+      <p class="flex max-w-3xl items-start gap-3 rounded-(--radius-card) border border-(--border-subtle) bg-(--surface-sunken) p-5 text-sm leading-relaxed text-(--text-body)">
+        <Icon name="download" size={20} class="mt-0.5 shrink-0 text-(--accent)" />
+        <span>
+          Each form is a fillable PDF. Download it, fill it in on your computer (or print it and
+          fill it in by hand), sign it, and return it to our office.
+        </span>
+      </p>
+
       <section>
-        <SectionHeading as="h2" kicker="For customers" title="Open an account or file a claim" />
+        <SectionHeading as="h2" kicker="For customers" title="Open an account" />
         <ul class="mt-8 grid gap-6 sm:grid-cols-2">
           {
             customerForms.map((form) => (
@@ -30,6 +44,7 @@ const driverForms = applicationForms.filter((f) => f.audience === 'drivers');
                 title={form.title}
                 description={form.description}
                 href={form.href}
+                pages={form.pages}
                 audience={form.audience}
               />
             ))
@@ -38,18 +53,19 @@ const driverForms = applicationForms.filter((f) => f.audience === 'drivers');
       </section>
 
       <section>
-        <SectionHeading as="h2" kicker="Join us" title="Driver and employment applications">
+        <SectionHeading as="h2" kicker="Join us" title="Driver and mechanic applications">
           <p>
-            Applying to drive for J&amp;L, or for an office or shop position? Start here.
+            Applying to drive for J&amp;L, or to work as a mechanic in our shop? Start here.
           </p>
         </SectionHeading>
         <ul class="mt-8 grid gap-6 sm:grid-cols-2">
           {
-            driverForms.map((form) => (
+            employmentForms.map((form) => (
               <FormCard
                 title={form.title}
                 description={form.description}
                 href={form.href}
+                pages={form.pages}
                 audience={form.audience}
               />
             ))
@@ -57,25 +73,27 @@ const driverForms = applicationForms.filter((f) => f.audience === 'drivers');
         </ul>
       </section>
 
-      <section>
-        <SectionHeading as="h2" kicker="Reference" title="Documents and certificates">
-          <p>
-            Download any of these directly. Every file is served over HTTPS from our own site.
-          </p>
-        </SectionHeading>
-        <ul class="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {
-            documents.map((doc) => (
-              <PdfCard
-                title={doc.title}
-                description={doc.description}
-                file={doc.file}
-                stale={'stale' in doc ? doc.stale : false}
-              />
-            ))
-          }
-        </ul>
-      </section>
+      {
+        SHOW_DOCUMENTS && (
+          <section>
+            <SectionHeading as="h2" kicker="Reference" title="Documents and certificates">
+              <p>
+                Download any of these directly. Every file is served over HTTPS from our own site.
+              </p>
+            </SectionHeading>
+            <ul class="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+              {documents.map((doc) => (
+                <PdfCard
+                  title={doc.title}
+                  description={doc.description}
+                  file={doc.file}
+                  stale={'stale' in doc ? doc.stale : false}
+                />
+              ))}
+            </ul>
+          </section>
+        )
+      }
 
       <aside
         class="flex flex-col gap-4 rounded-(--radius-card) border border-(--border-subtle) bg-(--surface-sunken) p-6 sm:flex-row sm:items-center sm:justify-between sm:p-8"

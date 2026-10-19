@@ -109,8 +109,18 @@ const rows = [
     <div class="flex gap-3">
       <Icon name="clock" size={18} class:list={[labelColor, 'mt-0.5']} />
       <div class="flex flex-col gap-0.5">
-        <span class:list={['text-xs font-semibold tracking-wide uppercase', labelColor]}>Hours</span>
-        <span class:list={['font-medium', valueColor]}>{site.hours}</span>
+        <span class:list={['text-xs font-semibold tracking-wide uppercase', labelColor]}>Office hours</span>
+        <span class:list={['font-medium', valueColor]}>{site.hours.office.label}</span>
+      </div>
+    </div>
+
+    <div class="flex gap-3">
+      <Icon name="truck" size={18} class:list={[labelColor, 'mt-0.5']} />
+      <div class="flex flex-col gap-0.5">
+        <span class:list={['text-xs font-semibold tracking-wide uppercase', labelColor]}>
+          Transportation operations
+        </span>
+        <span class:list={['max-w-sm text-sm leading-relaxed', valueColor]}>{site.hours.operations}</span>
       </div>
     </div>
   </address>

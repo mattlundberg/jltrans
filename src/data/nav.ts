@@ -4,11 +4,6 @@
  * The old site was a single page whose nav items were anchor links (#about,
  * #team). These are now real routes, which is better for search and lets
  * someone link to a specific section.
- *
- * `/news` is deliberately absent from the primary nav: the only post dates from
- * May 2016, and a visibly dormant blog in the header is worse than no blog. It
- * stays reachable from the footer and keeps working the moment a second post is
- * added.
  */
 
 export interface NavItem {
@@ -24,11 +19,7 @@ export const primaryNav: readonly NavItem[] = [
   { label: 'Team', href: '/team/', blurb: 'The people behind J&L' },
   { label: 'Forms', href: '/forms/', blurb: 'Applications and documents' },
   { label: 'Schedule', href: '/do-i-work/', blurb: 'Staff schedule — password required' },
-  { label: 'Contact', href: '/contact/', blurb: 'Phone, email and FAQs' },
-] as const;
-
-export const secondaryNav: readonly NavItem[] = [
-  { label: 'News', href: '/news/', blurb: 'Company updates' },
+  { label: 'Contact', href: '/contact/', blurb: 'Phone, email and hours' },
 ] as const;
 
 /** True when `href` is the current page, tolerating trailing-slash differences. */

@@ -2,10 +2,12 @@
 import BaseLayout from './BaseLayout.astro';
 import Container from '../components/primitives/Container.astro';
 import SectionHeading from '../components/primitives/SectionHeading.astro';
+import HeroBackdrop from '../components/blocks/HeroBackdrop.astro';
 
 /**
- * Inner-page shell: breadcrumb, page <h1>, and optional lead paragraph.
- * Home does not use this — it has its own hero.
+ * Inner-page shell: breadcrumb, page <h1>, and optional lead paragraph, on the
+ * same dark backdrop as the home hero. Home does not use this — it has its own
+ * hero.
  */
 interface Props {
   title: string;
@@ -23,21 +25,23 @@ const { title, description, kicker, lead, noindex = false } = Astro.props;
 <BaseLayout {title} {description} {noindex}>
   <slot name="head" slot="head" />
 
-  <div class="border-b border-(--border-subtle) bg-(--surface-sunken)">
+  <div class="relative isolate overflow-hidden border-b border-white/10 bg-(--color-ink-900) text-white">
+    <HeroBackdrop />
+
     <Container class="py-4">
       <nav aria-label="Breadcrumb">
-        <ol class="flex flex-wrap items-center gap-2 text-sm text-(--text-muted)">
+        <ol class="flex flex-wrap items-center gap-2 text-sm text-(--color-ink-200)">
           <li>
-            <a href="/" class="underline-offset-4 hover:text-(--accent) hover:underline">Home</a>
+            <a href="/" class="underline-offset-4 hover:text-(--color-brand-400) hover:underline">Home</a>
           </li>
           <li aria-hidden="true">/</li>
-          <li class="font-medium text-(--text-strong)" aria-current="page">{title}</li>
+          <li class="font-medium text-white" aria-current="page">{title}</li>
         </ol>
       </nav>
     </Container>
 
-    <Container class="pt-6 pb-12 sm:pb-16">
-      <SectionHeading as="h1" size="hero" {kicker} {title}>
+    <Container class="pt-6 pb-14 sm:pb-20">
+      <SectionHeading as="h1" size="hero" tone="inverse" {kicker} {title}>
         {lead ?? description}
       </SectionHeading>
     </Container>

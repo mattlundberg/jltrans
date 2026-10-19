@@ -1,8 +1,9 @@
 ---
-name: Micheal H. Jimenez
-role: President & CEO, Co-Founder
+name: Michael H. Jimenez
+role: President and Founder
 location: Phoenix
 order: 1
+photo: ../../assets/team/michael-h-jimenez.jpg
 ---
 
 Prior to starting J&L Transportation, Mike was involved in the trucking business as a driver,

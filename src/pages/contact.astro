@@ -1,27 +1,19 @@
 ---
-import { getCollection } from 'astro:content';
 import PageLayout from '../layouts/PageLayout.astro';
 import Container from '../components/primitives/Container.astro';
 import SectionHeading from '../components/primitives/SectionHeading.astro';
 import ContactBlock from '../components/blocks/ContactBlock.astro';
-import FaqAccordion from '../components/FaqAccordion.astro';
 import Button from '../components/primitives/Button.astro';
 import Icon from '../components/primitives/Icon.astro';
-import { faqJsonLd } from '../lib/seo';
-
-const faqs = (await getCollection('faq')).sort((a, b) => a.data.order - b.data.order);
-
-const jsonLd = faqJsonLd(faqs.map((f) => ({ question: f.data.question, answer: f.data.summary })));
+import { site } from '../data/site';
 ---
 
 <PageLayout
   title="Contact"
   kicker="Contact"
-  description="Contact J & L Transportation in Phoenix, Arizona. Dispatch answers 24 hours a day, seven days a week."
-  lead="Get in touch with us. Dispatch answers 24 hours a day, seven days a week."
+  description="Contact J & L Transportation in Phoenix, Arizona. Office hours Monday–Friday, 6:00 AM – 5:00 PM."
+  lead="Get in touch with us. Our office is open Monday–Friday, 6:00 AM – 5:00 PM."
 >
-  <script type="application/ld+json" set:html={jsonLd} is:inline slot="head" />
-
   <Container class="py-section">
     <div class="grid gap-14 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] lg:gap-16">
       <div>
@@ -49,8 +41,11 @@ const jsonLd = faqJsonLd(faqs.map((f) => ({ question: f.data.question, answer: f
             <div>
               <h3 class="font-bold text-(--text-strong)">Online form coming shortly</h3>
               <p class="mt-1 text-sm leading-relaxed text-(--text-body)">
-                We are finishing the setup on our new contact form. Until it is live, calling
-                dispatch is the fastest way to reach us — someone answers around the clock.
+                We are finishing the setup on our new contact form. Until it is live, call us
+                during office hours or email{' '}
+                <a href={`mailto:${site.email.general}`} class="font-semibold text-(--accent) underline-offset-4 hover:underline">
+                  {site.email.general}
+                </a>.
               </p>
             </div>
           </div>
@@ -64,17 +59,4 @@ const jsonLd = faqJsonLd(faqs.map((f) => ({ question: f.data.question, answer: f
       </div>
     </div>
   </Container>
-
-  <section class="border-t border-(--border-subtle) bg-(--surface-sunken)">
-    <Container width="prose" class="py-section">
-      <SectionHeading as="h2" kicker="FAQs" title="Frequently asked questions" class="mb-8">
-        <p>
-          If your question is not listed, contact us and we will get an answer back to you as soon as
-          possible.
-        </p>
-      </SectionHeading>
-
-      <FaqAccordion {faqs} />
-    </Container>
-  </section>
 </PageLayout>

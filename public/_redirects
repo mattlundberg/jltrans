@@ -14,6 +14,7 @@
 # All four currently land on the forms hub. Point each at its own hosted form
 # once the platform is chosen.
 /j-l-credit-application      /forms/  301
+# The claim form is temporarily removed from /forms; old links still land there.
 /j-l-claim-form              /forms/  301
 /j-l-driver-application      /forms/  301
 /j-l-employment-application  /forms/  301

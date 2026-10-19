@@ -5,6 +5,7 @@ import SectionHeading from '../components/primitives/SectionHeading.astro';
 import Button from '../components/primitives/Button.astro';
 import Icon from '../components/primitives/Icon.astro';
 import Hero from '../components/blocks/Hero.astro';
+import fleetPhoto from '../assets/hero/fleet.jpg';
 import StatRow from '../components/blocks/StatRow.astro';
 import AssociationLogos from '../components/blocks/AssociationLogos.astro';
 import ServiceCard from '../components/cards/ServiceCard.astro';
@@ -46,7 +47,7 @@ const differentiators = [
   title="Home"
   description={site.description}
 >
-  <Hero />
+  <Hero backgroundImage={fleetPhoto} />
 
   <StatRow />
 
@@ -126,7 +127,8 @@ const differentiators = [
       <div class="flex max-w-2xl flex-col gap-3">
         <h2 class="text-section text-white">Ready to move your freight?</h2>
         <p class="text-lg text-(--text-muted-on-inverse)">
-          Open an account, request a rate sheet, or talk to dispatch — we answer 24 hours a day.
+          Open an account, request a rate sheet, or talk to dispatch — our office is open
+          {' '}{site.hours.office.label.replace(' | ', ', ')}.
         </p>
       </div>
       <div class="flex flex-wrap gap-3">

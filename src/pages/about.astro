@@ -4,86 +4,122 @@ import Container from '../components/primitives/Container.astro';
 import SectionHeading from '../components/primitives/SectionHeading.astro';
 import Prose from '../components/primitives/Prose.astro';
 import AssociationLogos from '../components/blocks/AssociationLogos.astro';
-import { site, yearsInBusiness } from '../data/site';
-import { joinProse } from '../lib/format';
+import { site } from '../data/site';
+
+const taglineClass =
+  'border-l-4 border-(--accent) pl-4 text-lg font-bold tracking-tight text-(--text-strong) sm:text-xl';
 ---
 
 <PageLayout
   title="About Us"
   kicker="About"
-  description={`J & L Transportation was incorporated in January ${site.founded} as a distribution, drayage, warehouse and intermodal service provider serving Arizona, Nevada and Sonora, Mexico.`}
+  description={`Founded in Phoenix in January ${site.founded}, J & L Transportation provides intermodal drayage and dedicated truckload transportation throughout Arizona and the western United States, with service into Mexico.`}
   lead="The reasons you'll choose us for your carrier needs."
 >
   <Container width="prose" class="py-section">
-    <div class="flex flex-col gap-14">
-      <section>
-        <SectionHeading as="h2" title="History of J & L" class="mb-5" />
+    <div class="flex flex-col gap-16">
+      <section class="flex flex-col gap-6">
+        <SectionHeading as="h2" kicker="History" title="Our History">
+          <p>Nearly Four Decades of Experience, Integrity, and Dependable Transportation</p>
+        </SectionHeading>
         <Prose size="lg">
           <p>
-            J&amp;L Transportation was incorporated in January {site.founded} as a distribution,
-            drayage, warehouse, and intermodal service provider. With our customers&rsquo; support,
-            J&amp;L Transportation has experienced steady, conservative growth over the past
-            {' '}{yearsInBusiness()} years. Our commitment is to service our customers effectively and
-            economically. It has always been, and will remain, J&amp;L Transportation&rsquo;s focus
-            to recognize its customers&rsquo; needs and fulfill those needs through the highest
-            quality service.
+            Founded in January {site.founded}, J&amp;L Transportation began with a vision to provide
+            dependable, efficient, and customer-focused transportation services. Established in
+            Phoenix, Arizona, the company built its foundation on hard work, industry expertise, and
+            a commitment to delivering exceptional service.
           </p>
           <p>
-            J&amp;L Transportation&rsquo;s principals and management team have extraordinary combined
-            transportation experience. Detailed information on our team and their responsibilities is
-            on <a href="/team/">our team page</a>.
+            Co-founder Michael H. Jimenez brought extensive hands-on experience to the business,
+            having worked in the trucking industry since 1972 as a driver, mechanic, and business
+            owner. His understanding of transportation operations, combined with a commitment to
+            honest business practices, helped establish J&amp;L as a respected name in the industry.
           </p>
           <p>
-            Prudent financial management and continued customer satisfaction has made J&amp;L
-            Transportation Arizona&rsquo;s premier intermodal carrier.
+            Over the decades, J&amp;L Transportation has grown into an established provider of
+            intermodal transportation, drayage, and dedicated trucking services. Through responsible
+            growth, experienced leadership, and long-standing customer relationships, the company has
+            expanded its reach throughout Arizona and the western United States, with service
+            capabilities extending into Mexico.
+          </p>
+          <p>
+            Throughout its history, J&amp;L has remained committed to the principles that shaped its
+            beginnings: safety, integrity, reliability, and exceptional customer service. These values
+            continue to guide daily operations, from maintaining equipment and supporting drivers to
+            ensuring that customers receive the dependable transportation solutions their businesses
+            require.
+          </p>
+          <p>
+            As J&amp;L Transportation approaches its 40th anniversary, the company remains proud of
+            its history and focused on its future. While the transportation industry continues to
+            evolve, J&amp;L&rsquo;s commitment to its customers, employees, and the communities it
+            serves remains unchanged.
           </p>
         </Prose>
+        <p class={taglineClass}>
+          Built on Experience. Driven by Integrity. Trusted Since {site.founded}.
+        </p>
       </section>
 
-      <section>
-        <SectionHeading as="h2" title="Current Operations" class="mb-5" />
+      <section class="flex flex-col gap-6">
+        <SectionHeading as="h2" kicker="Operations" title="Current Operations">
+          <p>Reliable Transportation. Experienced Professionals. Dependable Service.</p>
+        </SectionHeading>
         <Prose size="lg">
           <p>
-            J&amp;L Transportation operates a green fleet of company-owned trucks seven days a week,
-            on a twenty-four hour basis. All trucks are equipped with state of the art communication
-            devices for safe and complete dispatch. J&amp;L&rsquo;s safety and maintenance is handled
-            by our own mechanics at our modern, well-equipped shop, to ensure the highest standards.
+            Today, J&amp;L Transportation continues to serve as a trusted transportation and logistics
+            provider, delivering dependable freight solutions throughout Arizona and the western United
+            States. With nearly four decades of industry experience, we combine operational
+            expertise, a company-owned fleet, and dedicated personnel to meet the evolving needs of
+            our customers.
           </p>
           <p>
-            J&amp;L Transportation&rsquo;s freight claims are less than 0.1% over the last three
-            years. Proper and safe handling of your freight is a priority at J&amp;L Transportation.
+            J&amp;L specializes in intermodal drayage and dedicated truckload transportation,
+            providing reliable freight movement tailored to customer needs. Our transportation
+            operations are scheduled to accommodate the individual needs of our customers, providing
+            flexibility and dependable service beyond standard business hours. Our administrative and
+            customer service offices are open Monday through Friday, from 6:00 AM to 5:00 PM.
           </p>
           <p>
-            J&amp;L Transportation Drayage serves {joinProse(site.serviceAreas.drayage)} with our
-            &ldquo;conscientious care&rdquo; service. Our Dedicated Truck Load Fleet serves our
-            customers in {joinProse(site.serviceAreas.truckload)}. We will continue to expand as we
-            look to serve you more fully in the West.
+            Our drayage operations serve Arizona, northern Nevada, and Sonora, Mexico, connecting
+            customers to critical rail and freight transportation networks. Our dedicated truckload
+            services extend throughout Arizona, California, Nevada, New Mexico, and Texas, offering
+            flexible regional and interstate transportation solutions.
+          </p>
+          <p>
+            At the center of our operations is a commitment to safety, reliability, and
+            accountability. Our company-owned fleet is supported by experienced drivers, dispatch
+            personnel, and an in-house maintenance team. This hands-on approach allows us to maintain
+            operational oversight, prioritize equipment reliability, and deliver consistent service.
+          </p>
+          <p>
+            We understand that successful transportation requires more than moving freight. It
+            requires dependable communication, attention to detail, and a commitment to meeting
+            customer expectations.
+          </p>
+          <p>
+            As the transportation industry evolves, J&amp;L remains focused on maintaining high
+            operational standards, strengthening customer relationships, and delivering the
+            dependable service that has defined our company since {site.founded}.
           </p>
         </Prose>
+        <p class={taglineClass}>
+          Built on Experience. Driven by Reliability. Trusted Since {site.founded}.
+        </p>
       </section>
 
-      <section>
-        <SectionHeading as="h2" kicker="Mission" title="Our Mission Statement" class="mb-5" />
+      <section class="flex flex-col gap-6">
+        <SectionHeading as="h2" kicker="Mission" title="Our Mission Statement" />
         <div
           class="rounded-(--radius-card) border-l-4 border-(--accent) bg-(--surface-sunken) p-6 sm:p-8"
         >
           <Prose size="lg">
             <p>
-              J&amp;L Transportation&rsquo;s mission is to help our customers by operating
-              environmentally friendly equipment for the highest quality freight delivery services. We
-              do so by showing great care, attention and industriousness in performing a task or role
-              at our customer&rsquo;s request.
-            </p>
-            <p>
-              We will strive to achieve extraordinary levels of client satisfaction by employing
-              highly qualified individuals, providing them with a challenging and rewarding work
-              environment responsive to their needs for balance between their professional and
-              personal lives.
-            </p>
-            <p>
-              The entire workforce of employees at J&amp;L Transportation is committed to the
-              fulfillment of our customer satisfaction goals. Everyone here at J&amp;L Transportation
-              understands that by working together, there is nothing we cannot achieve.
+              At J&amp;L Transportation, our mission is to provide safe, reliable, and efficient
+              transportation solutions through experienced professionals, dependable equipment, and
+              an unwavering commitment to customer service. We strive to build lasting relationships
+              through integrity, accountability, and consistent performance while maintaining the
+              values that have defined our company since {site.founded}.
             </p>
           </Prose>
         </div>

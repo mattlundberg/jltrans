@@ -13,6 +13,8 @@ interface Props {
   align?: 'start' | 'center';
   /** Renders at hero scale. Reserved for the top of a page. */
   size?: 'section' | 'hero';
+  /** `inverse` for headings on the dark hero backdrop. */
+  tone?: 'default' | 'inverse';
   id?: string;
   class?: string;
 }
@@ -23,6 +25,7 @@ const {
   as: Tag = 'h2',
   align = 'start',
   size = 'section',
+  tone = 'default',
   id,
   class: className = '',
 }: Props = Astro.props;
@@ -37,13 +40,20 @@ const {
 >
   {
     kicker && (
-      <p class="text-xs font-semibold tracking-[0.14em] uppercase text-(--accent)">{kicker}</p>
+      <p
+        class:list={[
+          'text-xs font-semibold tracking-[0.14em] uppercase',
+          tone === 'inverse' ? 'text-(--color-brand-400)' : 'text-(--accent)',
+        ]}
+      >
+        {kicker}
+      </p>
     )
   }
   <Tag
     id={id}
     class:list={[
-      'text-(--text-strong)',
+      tone === 'inverse' ? 'text-white' : 'text-(--text-strong)',
       size === 'hero' ? 'text-hero font-extrabold' : 'text-section',
     ]}
   >
@@ -53,7 +63,8 @@ const {
     Astro.slots.has('default') && (
       <div
         class:list={[
-          'text-lg leading-relaxed text-(--text-body)',
+          'text-lg leading-relaxed',
+          tone === 'inverse' ? 'text-(--color-ink-100)' : 'text-(--text-body)',
           align === 'center' ? 'max-w-(--container-prose)' : 'max-w-2xl',
         ]}
       >

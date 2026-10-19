@@ -1,34 +1,29 @@
 ---
-import { getCollection, render } from 'astro:content';
+import { getCollection } from 'astro:content';
 import PageLayout from '../layouts/PageLayout.astro';
 import Container from '../components/primitives/Container.astro';
 import TeamCard from '../components/cards/TeamCard.astro';
 
+// Bios stay in each entry's Markdown body but are not shown on the cards.
 const members = (await getCollection('team')).sort((a, b) => a.data.order - b.data.order);
-
-const rendered = await Promise.all(
-  members.map(async (member) => ({ member, Content: (await render(member)).Content }))
-);
 ---
 
 <PageLayout
   title="Our Team"
   kicker="Our team"
-  description="The principals and management team behind J & L Transportation, with combined transportation experience across dispatch, operations, safety and accounting."
+  description="The principals behind J & L Transportation, with decades of combined experience in intermodal, drayage and truckload operations."
   lead="J&L Transportation's principals and management team have extraordinary combined transportation experience."
 >
   <Container class="py-section">
-    <ul class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+    <ul class="mx-auto grid max-w-3xl gap-6 sm:grid-cols-2">
       {
-        rendered.map(({ member, Content }) => (
+        members.map((member) => (
           <TeamCard
             name={member.data.name}
             role={member.data.role}
             location={member.data.location}
             photo={member.data.photo}
-          >
-            <Content />
-          </TeamCard>
+          />
         ))
       }
     </ul>

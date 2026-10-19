@@ -28,6 +28,7 @@
 
 import { readdirSync, readFileSync, statSync, existsSync } from 'node:fs';
 import { join, extname, relative, sep, basename } from 'node:path';
+import { inflateSync } from 'node:zlib';
 
 const args = process.argv.slice(2);
 const STRICT = args.includes('--strict');
@@ -233,6 +234,27 @@ function checkBinary(file, buf) {
 
   const raw = buf.toString('latin1');
 
+  // What a PDF reader actually interprets: the document structure outside
+  // streams, plus the decompressed contents of every Flate stream (object
+  // streams can hide dictionaries, including /JS, from a raw scan).
+  //
+  // The raw compressed bytes themselves are NOT scanned. Deflate output is
+  // effectively random, so a large PDF contains sequences like `/JS,` purely by
+  // chance — a 1.2 MB driver application tripped exactly that.
+  const streamRe = /stream\r?\n([\s\S]*?)\r?\nendstream/g;
+  const inflated = [];
+  for (const m of raw.matchAll(streamRe)) {
+    try {
+      inflated.push(inflateSync(Buffer.from(m[1], 'latin1')).toString('latin1'));
+    } catch {
+      // Not Flate (e.g. a JPEG image stream) — nothing a reader would parse as objects.
+    }
+  }
+  // PDF names may hex-escape characters (`/J#53` is `/JS`); decode before matching.
+  const interpreted = [raw.replace(streamRe, ' '), ...inflated]
+    .join('\n')
+    .replace(/#([0-9a-fA-F]{2})/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
+
   // Active content is the genuine risk in a PDF. Word boundaries matter: a bare
   // `includes('/JS')` also matches `/JSName` and similar.
   const tokens = [
@@ -245,7 +267,7 @@ function checkBinary(file, buf) {
     /\/RichMedia\b/,
   ];
   for (const re of tokens) {
-    const m = re.exec(raw);
+    const m = re.exec(interpreted);
     if (m) {
       errors.push(`${rel}  PDF contains active-content token ${m[0]} — re-export this file without it`);
     }

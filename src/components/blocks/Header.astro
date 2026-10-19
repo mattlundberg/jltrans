@@ -1,4 +1,6 @@
 ---
+import { Image } from 'astro:assets';
+import logo from '../../assets/brand/jl-logo.png';
 import Container from '../primitives/Container.astro';
 import Icon from '../primitives/Icon.astro';
 import Button from '../primitives/Button.astro';
@@ -13,13 +15,15 @@ const pathname = Astro.url.pathname;
   class="sticky top-0 z-40 border-b border-(--border-subtle) bg-(--surface-page)/85 backdrop-blur-md"
 >
   <Container class="flex h-16 items-center justify-between gap-4 sm:h-20">
-    <a href="/" class="group flex shrink-0 flex-col leading-none" aria-label={`${site.name} — home`}>
-      <span class="text-xl font-extrabold tracking-tight text-(--text-strong) sm:text-2xl">
-        J<span class="text-(--accent)">&amp;</span>L
-      </span>
-      <span class="text-[0.6rem] font-semibold tracking-[0.18em] uppercase text-(--text-muted)">
-        Transportation
-      </span>
+    <a href="/" class="flex shrink-0 items-center" aria-label={`${site.name} — home`}>
+      <Image
+        src={logo}
+        alt=""
+        height={52}
+        densities={[1, 2]}
+        loading="eager"
+        class="h-11 w-auto rounded-md sm:h-13"
+      />
     </a>
 
     <!-- Desktop navigation -->
