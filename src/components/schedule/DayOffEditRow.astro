@@ -1,0 +1,67 @@
+---
+/**
+ * One editable company-day-off row.
+ *
+ * Rendered for each saved day off, and once more inside a `<template>` with
+ * placeholder indexes for the "Add New Company Holiday" button to clone.
+ */
+import Icon from '../primitives/Icon.astro';
+import { LIMITS, type DayOff } from '../../lib/schedule';
+import { inputClass, removeNewRowClass, ROW_INDEX, ROW_NUMBER } from './classes';
+
+interface Props {
+  /** Row index, or omitted for the template row. */
+  index?: number;
+  /** The day off, or omitted for a new (template) row. */
+  off?: DayOff;
+  today: string;
+}
+
+const { index, off, today } = Astro.props;
+
+const i = index ?? ROW_INDEX;
+const n = index === undefined ? ROW_NUMBER : String(index + 1);
+---
+
+<tr class="border-b border-(--border-subtle) last:border-b-0">
+  <td class="w-48 px-2 py-2">
+    <input type="hidden" name={`off-${i}-id`} value={off?.id ?? ''} />
+    <div class="flex items-center gap-2">
+      <input type="date" name={`off-${i}-date`} value={off?.date ?? ''} aria-label={`Date, row ${n}`} class={inputClass} />
+      {off && off.date < today && <span class="text-xs font-semibold uppercase text-(--text-muted)">Past</span>}
+    </div>
+  </td>
+  <td class="min-w-52 px-2 py-2">
+    <input
+      type="text"
+      name={`off-${i}-name`}
+      value={off?.name ?? ''}
+      maxlength={LIMITS.dayOffName}
+      placeholder="e.g. Thanksgiving"
+      aria-label={`Name, row ${n}`}
+      class={inputClass}
+    />
+  </td>
+  <td class="min-w-64 px-2 py-2">
+    <input
+      type="text"
+      name={`off-${i}-note`}
+      value={off?.note ?? ''}
+      maxlength={LIMITS.dayOffNote}
+      placeholder="Optional"
+      aria-label={`Note, row ${n}`}
+      class={inputClass}
+    />
+  </td>
+  <td class="px-3 py-2 text-center">
+    {
+      off ? (
+        <input type="checkbox" name={`off-${i}-remove`} value="1" aria-label={`Remove ${off.name}`} class="h-4 w-4 accent-(--accent)" />
+      ) : (
+        <button type="button" data-remove-row class={removeNewRowClass} aria-label={`Discard new row ${n}`}>
+          <Icon name="close" size={16} />
+        </button>
+      )
+    }
+  </td>
+</tr>

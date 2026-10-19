@@ -23,12 +23,12 @@ export const primaryNav: readonly NavItem[] = [
   { label: 'Who We Are', href: '/who-we-are/', blurb: 'Values and philosophy' },
   { label: 'Team', href: '/team/', blurb: 'The people behind J&L' },
   { label: 'Forms', href: '/forms/', blurb: 'Applications and documents' },
+  { label: 'Schedule', href: '/do-i-work/', blurb: 'Staff schedule — password required' },
   { label: 'Contact', href: '/contact/', blurb: 'Phone, email and FAQs' },
 ] as const;
 
 export const secondaryNav: readonly NavItem[] = [
   { label: 'News', href: '/news/', blurb: 'Company updates' },
-  { label: 'Do I Work', href: '/do-i-work', blurb: 'Password required' },
 ] as const;
 
 /** True when `href` is the current page, tolerating trailing-slash differences. */

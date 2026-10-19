@@ -1,0 +1,125 @@
+---
+/**
+ * One editable roster row: name, position, and one cell per day.
+ *
+ * Day cells are buttons that open the shared shift dialog (see ShiftDialog);
+ * the times themselves travel in hidden inputs with the same names the server
+ * has always parsed, so saving and validation are unchanged.
+ *
+ * Rendered for each existing employee, and once more inside a `<template>`
+ * with placeholder indexes for the "Add New Employee" button to clone.
+ */
+import Icon from '../primitives/Icon.astro';
+import { DAYS, DAY_LABELS, LIMITS, formatShift, type Day, type EditRow } from '../../lib/schedule';
+import { inputClass, errorText, removeNewRowClass, ROW_INDEX, ROW_NUMBER } from './classes';
+
+interface Props {
+  /** Row index, or omitted for the template row. */
+  index?: number;
+  /** The employee, or omitted for a new (template) row. */
+  emp?: EditRow;
+  dates: Record<Day, string>;
+  dayOffDates: Set<string>;
+  /** Errors keyed `index-day` or `index-name`. */
+  errorAt?: Map<string, string>;
+}
+
+const { index, emp, dates, dayOffDates, errorAt = new Map<string, string>() } = Astro.props;
+
+const i = index ?? ROW_INDEX;
+const n = index === undefined ? ROW_NUMBER : String(index + 1);
+const label = emp?.name || `Row ${n}`;
+const nameError = errorAt.get(`${i}-name`);
+
+/** What a day cell shows. Half-filled or invalid input (from a refused save) is shown as typed. */
+function cellText(times: { start: string; end: string } | undefined): string {
+  if (!times || (!times.start && !times.end)) return 'Off';
+  if (/^\d{2}:\d{2}$/.test(times.start) && /^\d{2}:\d{2}$/.test(times.end)) return formatShift(times);
+  return `${times.start || '?'} – ${times.end || '?'}`;
+}
+---
+
+<tr class="border-b border-(--border-subtle) align-top last:border-b-0" data-emp-row>
+  <td class="min-w-52 px-2 py-2">
+    <div class="flex flex-col gap-1">
+      <input type="hidden" name={`emp-${i}-id`} value={emp?.id ?? ''} />
+      <input
+        type="text"
+        id={`emp-${i}-name`}
+        name={`emp-${i}-name`}
+        value={emp?.name ?? ''}
+        maxlength={LIMITS.name}
+        placeholder="Name"
+        aria-label={`Name, row ${n}`}
+        aria-invalid={nameError ? 'true' : undefined}
+        class:list={[inputClass, 'font-semibold']}
+        data-emp-name
+      />
+      <input
+        type="text"
+        name={`emp-${i}-role`}
+        value={emp?.role ?? ''}
+        maxlength={LIMITS.role}
+        placeholder="Position, e.g. Driver"
+        aria-label={`Position, row ${n}`}
+        class={inputClass}
+      />
+      {nameError && <p class={errorText}>{nameError}</p>}
+      <button
+        type="button"
+        data-set-hours
+        class="mt-1 inline-flex w-fit items-center gap-1.5 rounded-full border border-(--border-strong) px-3 py-1 text-xs font-semibold text-(--text-strong) hover:border-(--accent) hover:text-(--accent)"
+      >
+        <Icon name="clock" size={14} />
+        Set hours
+      </button>
+    </div>
+  </td>
+  {
+    DAYS.map((day) => {
+      const cellError = errorAt.get(`${i}-${day}`);
+      const times = emp?.times[day];
+      const set = Boolean(times?.start || times?.end);
+      return (
+        <td class:list={['min-w-28 px-1.5 py-2', dayOffDates.has(dates[day]) && 'bg-(--accent-subtle-bg)/60']} data-day-cell={day}>
+          <input type="hidden" name={`emp-${i}-${day}-start`} value={times?.start ?? ''} data-start />
+          <input type="hidden" name={`emp-${i}-${day}-end`} value={times?.end ?? ''} data-end />
+          <button
+            type="button"
+            id={`emp-${i}-${day}-start`}
+            data-edit-day={day}
+            aria-label={`${label}, ${DAY_LABELS[day]}: ${cellText(times)}. Change hours`}
+            aria-invalid={cellError ? 'true' : undefined}
+            data-set={set ? 'true' : 'false'}
+            class:list={[
+              'flex min-h-12 w-full items-center justify-center rounded-lg border border-dashed border-(--border-strong) px-1.5 py-2 text-center text-xs tabular-nums text-(--text-muted) transition-colors',
+              'data-[set=true]:border-solid data-[set=true]:bg-(--surface-page) data-[set=true]:font-semibold data-[set=true]:text-(--text-strong)',
+              'hover:border-(--accent) hover:bg-(--accent-subtle-bg) aria-invalid:border-red-600 dark:aria-invalid:border-red-400',
+            ]}
+          >
+            {cellText(times)}
+          </button>
+          {cellError && <p class:list={[errorText, 'mt-1']} data-cell-error>{cellError}</p>}
+        </td>
+      );
+    })
+  }
+  <td class="px-3 py-3 text-center">
+    {
+      emp ? (
+        <input
+          type="checkbox"
+          name={`emp-${i}-remove`}
+          value="1"
+          aria-label={`Remove ${label} from the schedule`}
+          class="h-4 w-4 accent-(--accent)"
+        />
+      ) : (
+        /* A row that has never been saved just disappears; nothing to confirm. */
+        <button type="button" data-remove-row class={removeNewRowClass} aria-label={`Discard new row ${n}`}>
+          <Icon name="close" size={16} />
+        </button>
+      )
+    }
+  </td>
+</tr>

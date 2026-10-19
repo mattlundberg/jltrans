@@ -1,6 +1,15 @@
 /**
  * Staff schedule for /do-i-work — data model, storage and form parsing.
  *
+ * SHAPE
+ * -----
+ * The roster (names and positions) is shared. Shifts live per week, keyed by
+ * that week's Monday, so "this week" and "next week" are simply the two keys
+ * nearest today. When the calendar rolls over, what was next week becomes this
+ * week on its own — nobody has to promote it.
+ *
+ * A shift is a start and end time on the same day. Blank means not working.
+ *
  * STORAGE
  * -------
  * One JSON document in Netlify Blobs. The rest of the site is static files with
@@ -13,9 +22,9 @@
  *
  * CONCURRENT EDITS
  * ----------------
- * Every edit form carries the `updatedAt` it was rendered from. A save whose
- * stamp no longer matches the stored one is refused instead of silently
- * overwriting someone else's changes — see `saveSchedule`.
+ * Every form carries the `updatedAt` it was rendered from. A change whose stamp
+ * no longer matches the stored one is refused instead of silently overwriting
+ * someone else's work — see `updateSchedule`.
  *
  * WHAT BELONGS HERE
  * -----------------
@@ -23,6 +32,7 @@
  * times are fine; phone numbers, pay, or anything else personal is not.
  */
 import { getStore } from '@netlify/blobs';
+import { normaliseTime, toMinutes } from './time';
 
 export const DAYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const;
 export type Day = (typeof DAYS)[number];
@@ -44,8 +54,22 @@ export interface Employee {
   id: string;
   name: string;
   role: string;
-  /** Free text per day, e.g. "6a–2:30p", "Off", "On call". Empty means not set. */
-  shifts: Record<Day, string>;
+}
+
+/** Same-day shift, `HH:MM` 24-hour. `start` is always earlier than `end`. */
+export interface Shift {
+  start: string;
+  end: string;
+}
+
+/** One employee's week. `null` means not working that day. */
+export type WeekShifts = Record<Day, Shift | null>;
+
+export interface Week {
+  /** Free-text notes for the week, shown above the table. */
+  notes: string;
+  /** Keyed by employee id. A missing employee has no shifts that week. */
+  shifts: Record<string, WeekShifts>;
 }
 
 export interface DayOff {
@@ -57,12 +81,10 @@ export interface DayOff {
 }
 
 export interface Schedule {
-  version: 1;
-  /** Monday of the week shown, YYYY-MM-DD. */
-  weekOf: string;
-  /** Free-text notes for the week, shown above the table. */
-  notes: string;
+  version: 2;
   employees: Employee[];
+  /** Keyed by the week's Monday, YYYY-MM-DD. */
+  weeks: Record<string, Week>;
   daysOff: DayOff[];
   /** ISO timestamp of the last save, or null if never saved. */
   updatedAt: string | null;
@@ -78,14 +100,17 @@ export const LIMITS = {
   daysOff: 100,
   name: 80,
   role: 60,
-  shift: 40,
   dayOffName: 80,
   dayOffNote: 200,
   notes: 2000,
 } as const;
 
-/** Blank rows appended to each editable table so new entries need no JavaScript. */
-export const BLANK_ROWS = 3;
+/**
+ * Upper bound on the row indexes the edit form may post. Rows added and then
+ * removed in the browser leave gaps in the numbering, so this sits well above
+ * the real limits; it only stops a forged count from looping for ever.
+ */
+const FORM_ROW_CAP = 1000;
 
 /* -------------------------------------------------------------------------- */
 /* Dates                                                                      */
@@ -109,23 +134,27 @@ function toIso(date: Date): string {
   return date.toISOString().slice(0, 10);
 }
 
+export function addDays(iso: string, days: number): string {
+  const date = parseIso(iso) ?? (parseIso(todayIso()) as Date);
+  date.setUTCDate(date.getUTCDate() + days);
+  return toIso(date);
+}
+
 /** The Monday on or before the given date. */
 export function mondayOf(iso: string): string {
   const date = parseIso(iso) ?? (parseIso(todayIso()) as Date);
-  date.setUTCDate(date.getUTCDate() - ((date.getUTCDay() + 6) % 7));
-  return toIso(date);
+  return addDays(toIso(date), -((date.getUTCDay() + 6) % 7));
+}
+
+/** The Mondays of this week and next, in Arizona time. */
+export function currentAndNextWeek(today = todayIso()): { current: string; next: string } {
+  const current = mondayOf(today);
+  return { current, next: addDays(current, 7) };
 }
 
 /** The seven ISO dates of the week starting `weekOf`, keyed by day. */
 export function weekDates(weekOf: string): Record<Day, string> {
-  const start = parseIso(weekOf) ?? (parseIso(mondayOf(todayIso())) as Date);
-  return Object.fromEntries(
-    DAYS.map((day, i) => {
-      const d = new Date(start);
-      d.setUTCDate(start.getUTCDate() + i);
-      return [day, toIso(d)];
-    })
-  ) as Record<Day, string>;
+  return Object.fromEntries(DAYS.map((day, i) => [day, addDays(weekOf, i)])) as Record<Day, string>;
 }
 
 /** "Oct 20" — dates are calendar dates, so format in UTC to avoid any shift. */
@@ -158,6 +187,47 @@ export function formatTimestamp(iso: string): string {
 }
 
 /* -------------------------------------------------------------------------- */
+/* Times                                                                      */
+/* -------------------------------------------------------------------------- */
+
+// Parsing and formatting live in ./time so the browser can share them.
+export { normaliseTime, formatTime, formatShift } from './time';
+
+/* -------------------------------------------------------------------------- */
+/* Weeks                                                                      */
+/* -------------------------------------------------------------------------- */
+
+export function emptyWeekShifts(): WeekShifts {
+  return Object.fromEntries(DAYS.map((day) => [day, null])) as WeekShifts;
+}
+
+export function getWeek(schedule: Schedule, weekOf: string): Week {
+  return schedule.weeks[weekOf] ?? { notes: '', shifts: {} };
+}
+
+/** True when anyone on the current roster has at least one shift that week. */
+export function weekHasShifts(schedule: Schedule, weekOf: string): boolean {
+  const { shifts } = getWeek(schedule, weekOf);
+  return schedule.employees.some((emp) => DAYS.some((day) => shifts[emp.id]?.[day]));
+}
+
+/**
+ * Replaces the shifts of week `to` with those of week `from`. The target keeps
+ * its own notes — those tend to be about that specific week ("yard closes early
+ * Friday"), so carrying them over would more often be wrong than right.
+ */
+export function copyWeek(schedule: Schedule, from: string, to: string): Omit<Schedule, 'updatedAt'> {
+  const source = getWeek(schedule, from);
+  return {
+    ...schedule,
+    weeks: {
+      ...schedule.weeks,
+      [to]: { notes: getWeek(schedule, to).notes, shifts: structuredClone(source.shifts) },
+    },
+  };
+}
+
+/* -------------------------------------------------------------------------- */
 /* Storage                                                                    */
 /* -------------------------------------------------------------------------- */
 
@@ -169,38 +239,141 @@ function store() {
 }
 
 export function emptySchedule(): Schedule {
+  return { version: 2, employees: [], weeks: {}, daysOff: [], updatedAt: null };
+}
+
+/**
+ * Brings an older stored document up to the current shape.
+ *
+ * Version 1 had one week of free-text shifts ("6a–2p", "Off"). Those cannot be
+ * turned into reliable times, so the roster and company days off carry over and
+ * the shifts start blank.
+ */
+function migrate(stored: unknown): Schedule {
+  const doc = stored as Partial<Schedule> & { version?: number; employees?: Employee[] };
+  if (doc.version === 2) return doc as Schedule;
+
   return {
-    version: 1,
-    weekOf: mondayOf(todayIso()),
-    notes: '',
-    employees: [],
-    daysOff: [],
-    updatedAt: null,
+    version: 2,
+    employees: (doc.employees ?? []).map(({ id, name, role }) => ({ id, name, role })),
+    weeks: {},
+    daysOff: doc.daysOff ?? [],
+    updatedAt: doc.updatedAt ?? null,
   };
 }
 
 export async function loadSchedule(): Promise<Schedule> {
-  const stored = (await store().get(KEY, { type: 'json' })) as Schedule | null;
-  return stored ?? emptySchedule();
+  const stored = await store().get(KEY, { type: 'json' });
+  return stored ? migrate(stored) : emptySchedule();
 }
 
-export type SaveResult = { ok: true; schedule: Schedule } | { ok: false; reason: 'conflict' };
+export type UpdateResult = { ok: true; schedule: Schedule } | { ok: false; current: Schedule };
 
 /**
- * Writes the schedule unless someone else has saved since `basedOn` was read.
+ * Applies `change` to the stored schedule unless someone else has saved since
+ * `basedOn` was read.
  *
  * Read-then-write is not atomic, so two saves landing in the same instant can
  * still race. For a few editors updating a weekly roster that window is
  * acceptable; the check exists to catch the common case of two people editing
  * from stale pages.
+ *
+ * Weeks before this one are dropped on every write — nothing shows them, and it
+ * keeps the document from growing forever.
  */
-export async function saveSchedule(next: Omit<Schedule, 'updatedAt'>, basedOn: string | null): Promise<SaveResult> {
+export async function updateSchedule(
+  basedOn: string | null,
+  change: (current: Schedule) => Omit<Schedule, 'updatedAt'>
+): Promise<UpdateResult> {
   const current = await loadSchedule();
-  if (current.updatedAt !== basedOn) return { ok: false, reason: 'conflict' };
+  if (current.updatedAt !== basedOn) return { ok: false, current };
 
-  const schedule: Schedule = { ...next, updatedAt: new Date().toISOString() };
+  const next = change(current);
+  const { current: thisWeek } = currentAndNextWeek();
+  const weeks = Object.fromEntries(Object.entries(next.weeks).filter(([weekOf]) => weekOf >= thisWeek));
+
+  const schedule: Schedule = { ...next, weeks, updatedAt: new Date().toISOString() };
   await store().setJSON(KEY, schedule);
   return { ok: true, schedule };
+}
+
+/* -------------------------------------------------------------------------- */
+/* Editing one week                                                           */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * What the edit form shows and submits: the shared roster, one week's shifts
+ * and notes, and the company days off. Times are kept as raw strings so a
+ * submission with mistakes can be shown back exactly as typed.
+ */
+export interface EditRow {
+  id: string;
+  name: string;
+  role: string;
+  times: Record<Day, { start: string; end: string }>;
+}
+
+export interface WeekEdit {
+  weekOf: string;
+  notes: string;
+  employees: EditRow[];
+  daysOff: DayOff[];
+}
+
+/** A problem with one day of one row. `row` indexes `WeekEdit.employees`. */
+export interface ShiftError {
+  row: number;
+  day: Day | null;
+  message: string;
+}
+
+export function weekEditFrom(schedule: Schedule, weekOf: string): WeekEdit {
+  const week = getWeek(schedule, weekOf);
+  return {
+    weekOf,
+    notes: week.notes,
+    daysOff: schedule.daysOff,
+    employees: schedule.employees.map((emp) => ({
+      ...emp,
+      times: Object.fromEntries(
+        DAYS.map((day) => {
+          const shift = week.shifts[emp.id]?.[day];
+          return [day, { start: shift?.start ?? '', end: shift?.end ?? '' }];
+        })
+      ) as EditRow['times'],
+    })),
+  };
+}
+
+/** Writes a validated `WeekEdit` into the schedule. Other weeks keep their shifts. */
+export function applyWeekEdit(schedule: Schedule, edit: WeekEdit): Omit<Schedule, 'updatedAt'> {
+  const employees = edit.employees.map(({ id, name, role }) => ({ id, name, role }));
+  const ids = new Set(employees.map((emp) => emp.id));
+
+  // Someone removed from the roster loses their shifts in every week.
+  const weeks = Object.fromEntries(
+    Object.entries(schedule.weeks).map(([weekOf, week]) => [
+      weekOf,
+      { ...week, shifts: Object.fromEntries(Object.entries(week.shifts).filter(([id]) => ids.has(id))) },
+    ])
+  );
+
+  weeks[edit.weekOf] = {
+    notes: edit.notes,
+    shifts: Object.fromEntries(
+      edit.employees.map((row) => [
+        row.id,
+        Object.fromEntries(
+          DAYS.map((day) => {
+            const { start, end } = row.times[day];
+            return [day, start && end ? { start, end } : null];
+          })
+        ) as WeekShifts,
+      ])
+    ),
+  };
+
+  return { version: 2, employees, weeks, daysOff: edit.daysOff };
 }
 
 /* -------------------------------------------------------------------------- */
@@ -208,9 +381,10 @@ export async function saveSchedule(next: Omit<Schedule, 'updatedAt'>, basedOn: s
 /* -------------------------------------------------------------------------- */
 
 /*
- * The edit form posts flat fields — `emp-3-name`, `emp-3-tue`, `off-1-date` —
- * plus a row count for each table. Flat names keep the form plain HTML with no
- * client script, and parsing stays a simple loop.
+ * The edit form posts flat fields — `emp-3-name`, `emp-3-tue-start`,
+ * `off-1-date` — plus a row count for each table. Flat names keep the form
+ * plain HTML, and parsing stays a simple loop. Rows the editor added and then
+ * removed simply never arrive, so gaps in the numbering are skipped.
  */
 
 function text(form: FormData, key: string, max: number): string {
@@ -238,29 +412,59 @@ function rowId(form: FormData, key: string): string {
   return /^[a-zA-Z0-9-]+$/.test(id) ? id : crypto.randomUUID();
 }
 
-export function parseScheduleForm(form: FormData): Omit<Schedule, 'updatedAt'> {
-  const employees: Employee[] = [];
-  const employeeRows = count(form, 'emp-count', LIMITS.employees + BLANK_ROWS);
+/**
+ * Checks one day's pair of times. Both blank is a day off; otherwise both must
+ * be valid and the start must come before the end. Overnight shifts are not
+ * supported: a shift belongs to a single day.
+ */
+function checkShift(rawStart: string, rawEnd: string): { start: string; end: string; error: string | null } {
+  if (!rawStart && !rawEnd) return { start: '', end: '', error: null };
+
+  const start = rawStart ? normaliseTime(rawStart) : null;
+  const end = rawEnd ? normaliseTime(rawEnd) : null;
+
+  if (rawStart && !start) return { start: rawStart, end: rawEnd, error: 'Start time is not a valid time.' };
+  if (rawEnd && !end) return { start: rawStart, end: rawEnd, error: 'End time is not a valid time.' };
+  if (!start) return { start: '', end: end as string, error: 'Enter a start time, or clear the end time.' };
+  if (!end) return { start, end: '', error: 'Enter an end time, or clear the start time.' };
+  if (toMinutes(start) >= toMinutes(end)) return { start, end, error: 'Start time must be earlier than end time.' };
+  return { start, end, error: null };
+}
+
+export function parseWeekForm(form: FormData, weekOf: string): { edit: WeekEdit; errors: ShiftError[] } {
+  const employees: EditRow[] = [];
+  const errors: ShiftError[] = [];
+  const employeeRows = count(form, 'emp-count', FORM_ROW_CAP);
 
   for (let i = 0; i < employeeRows && employees.length < LIMITS.employees; i++) {
     const p = `emp-${i}`;
-    const name = text(form, `${p}-name`, LIMITS.name);
-    // A blank name is an unused "add" row, and removing is just leaving it out.
-    if (!name || form.get(`${p}-remove`)) continue;
+    if (form.get(`${p}-remove`)) continue;
 
-    employees.push({
-      id: rowId(form, `${p}-id`),
-      name,
-      role: text(form, `${p}-role`, LIMITS.role),
-      shifts: Object.fromEntries(DAYS.map((day) => [day, text(form, `${p}-${day}`, LIMITS.shift)])) as Record<
-        Day,
-        string
-      >,
-    });
+    const name = text(form, `${p}-name`, LIMITS.name);
+    const raw = DAYS.map((day) => [day, text(form, `${p}-${day}-start`, 12), text(form, `${p}-${day}-end`, 12)] as const);
+    const hasTimes = raw.some(([, start, end]) => start || end);
+
+    // A blank "add" row is skipped. One with times but no name is kept, so the
+    // editor can see it and either name it or clear it.
+    if (!name && !hasTimes) continue;
+
+    // Errors index into `employees`, which skips rows — so take the index the
+    // row will have in the redisplayed form, not the posted one.
+    const row = employees.length;
+    if (!name) errors.push({ row, day: null, message: 'Add a name for this row, or clear its times.' });
+
+    const times = {} as EditRow['times'];
+    for (const [day, rawStart, rawEnd] of raw) {
+      const { start, end, error } = checkShift(rawStart, rawEnd);
+      times[day] = { start, end };
+      if (error) errors.push({ row, day, message: error });
+    }
+
+    employees.push({ id: rowId(form, `${p}-id`), name, role: text(form, `${p}-role`, LIMITS.role), times });
   }
 
   const daysOff: DayOff[] = [];
-  const dayOffRows = count(form, 'off-count', LIMITS.daysOff + BLANK_ROWS);
+  const dayOffRows = count(form, 'off-count', FORM_ROW_CAP);
 
   for (let i = 0; i < dayOffRows && daysOff.length < LIMITS.daysOff; i++) {
     const p = `off-${i}`;
@@ -277,10 +481,7 @@ export function parseScheduleForm(form: FormData): Omit<Schedule, 'updatedAt'> {
   daysOff.sort((a, b) => a.date.localeCompare(b.date));
 
   return {
-    version: 1,
-    weekOf: mondayOf(text(form, 'weekOf', 10)),
-    notes: multiline(form, 'notes', LIMITS.notes),
-    employees,
-    daysOff,
+    edit: { weekOf, notes: multiline(form, 'notes', LIMITS.notes), employees, daysOff },
+    errors,
   };
 }

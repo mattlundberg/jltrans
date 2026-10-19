@@ -3,6 +3,10 @@ import PageLayout from '../layouts/PageLayout.astro';
 import Container from '../components/primitives/Container.astro';
 import Button from '../components/primitives/Button.astro';
 import Icon from '../components/primitives/Icon.astro';
+import EmployeeEditRow from '../components/schedule/EmployeeEditRow.astro';
+import DayOffEditRow from '../components/schedule/DayOffEditRow.astro';
+import ShiftDialog from '../components/schedule/ShiftDialog.astro';
+import { inputClass } from '../components/schedule/classes';
 import {
   sessionCookie,
   createSessionToken,
@@ -17,20 +21,27 @@ import { getSecrets } from '../lib/env';
 import {
   DAYS,
   DAY_LABELS,
-  BLANK_ROWS,
   LIMITS,
   loadSchedule,
-  saveSchedule,
-  parseScheduleForm,
+  updateSchedule,
+  parseWeekForm,
+  weekEditFrom,
+  applyWeekEdit,
+  copyWeek,
   emptySchedule,
+  getWeek,
+  weekHasShifts,
   weekDates,
-  mondayOf,
+  currentAndNextWeek,
   todayIso,
   formatShort,
   formatLong,
   formatTimestamp,
+  formatShift,
   type Schedule,
   type DayOff,
+  type WeekEdit,
+  type ShiftError,
 } from '../lib/schedule';
 
 /**
@@ -81,12 +92,20 @@ const clientIp =
 Astro.response.headers.set('X-Robots-Tag', 'noindex, nofollow');
 Astro.response.headers.set('Cache-Control', 'private, no-store, max-age=0');
 
+const { current: CURRENT_WEEK, next: NEXT_WEEK } = currentAndNextWeek();
+
+/** `?week=next` selects next week; anything else is this week. */
+const weekUrl = (weekOf: string, extra = '') =>
+  `${PAGE}?week=${weekOf === NEXT_WEEK ? 'next' : 'current'}${extra}`;
+const weekLabel = (weekOf: string) => (weekOf === NEXT_WEEK ? 'Next week' : 'This week');
+
 let error: string | null = null;
 let role: Role | null = null;
 
-/** Set when a save is refused, so the editor's unsaved input is shown again rather than lost. */
-let draft: Omit<Schedule, 'updatedAt'> | null = null;
+/** Set when a save is refused, so the editor's input is shown again rather than lost. */
+let draft: WeekEdit | null = null;
 let draftBasedOn: string | null = null;
+let draftErrors: ShiftError[] = [];
 let saveError: string | null = null;
 
 if (configured) {
@@ -96,35 +115,70 @@ if (configured) {
     const form = await Astro.request.formData();
     const intent = String(form.get('intent') ?? 'login');
 
-    if (intent === 'save') {
+    if (intent === 'save' || intent === 'copy') {
+      const basedOn = String(form.get('basedOn') ?? '') || null;
+
       if (!role) {
         // The session expired mid-edit. The gate shows `error`, not `saveError`.
         error = 'Your session expired before the schedule was saved. Sign in and make the changes again.';
       } else if (role !== 'editor' || !editingEnabled) {
         Astro.response.status = 403;
         saveError = 'Your session does not have permission to edit. Sign in with the editor password.';
+      } else if (intent === 'save') {
+        const weekOf = String(form.get('weekOf') ?? '');
+
+        if (weekOf !== CURRENT_WEEK && weekOf !== NEXT_WEEK) {
+          // The form was opened before Monday rolled over, so "this week" now
+          // means a different week. Saving would write to the wrong one.
+          saveError = 'A new week started while you were editing, so your changes were not saved. Please make them again.';
+        } else {
+          const { edit, errors } = parseWeekForm(form, weekOf);
+
+          if (errors.length) {
+            Astro.response.status = 422;
+            draft = edit;
+            draftBasedOn = basedOn;
+            draftErrors = errors;
+            saveError = 'Some entries need fixing before the schedule can be saved:';
+          } else {
+            try {
+              const result = await updateSchedule(basedOn, (current) => applyWeekEdit(current, edit));
+              if (result.ok) return Astro.redirect(weekUrl(weekOf, '&saved=1'), 303);
+
+              // Someone saved since this form was opened. Re-show this editor's
+              // input against the newer stamp: saving again is then a deliberate
+              // choice to replace the other changes.
+              draft = edit;
+              draftBasedOn = result.current.updatedAt;
+              saveError = `Someone else saved the schedule${
+                result.current.updatedAt ? ` at ${formatTimestamp(result.current.updatedAt)}` : ''
+              } while you were editing. Your changes are below but have not been saved. Saving again will replace theirs.`;
+            } catch (err) {
+              console.error('do-i-work: save failed', err);
+              draft = edit;
+              draftBasedOn = basedOn;
+              saveError = 'The schedule could not be saved. Please try again in a moment.';
+            }
+          }
+        }
       } else {
-        const next = parseScheduleForm(form);
-        const basedOn = String(form.get('basedOn') ?? '') || null;
+        const from = String(form.get('from') ?? '');
+        const to = String(form.get('to') ?? '');
+        const valid =
+          (from === CURRENT_WEEK && to === NEXT_WEEK) || (from === NEXT_WEEK && to === CURRENT_WEEK);
 
-        try {
-          const result = await saveSchedule(next, basedOn);
-          if (result.ok) return Astro.redirect(`${PAGE}?saved=1`, 303);
-
-          // Someone saved since this form was opened. Re-show this editor's
-          // input against the newer stamp: saving again is then a deliberate
-          // choice to replace the other changes.
-          const current = await loadSchedule();
-          draft = next;
-          draftBasedOn = current.updatedAt;
-          saveError = `Someone else saved the schedule${
-            current.updatedAt ? ` at ${formatTimestamp(current.updatedAt)}` : ''
-          } while you were editing. Your changes are below but have not been saved. Saving again will replace theirs.`;
-        } catch (err) {
-          console.error('do-i-work: save failed', err);
-          draft = next;
-          draftBasedOn = basedOn;
-          saveError = 'The schedule could not be saved. Please try again in a moment.';
+        if (!valid) {
+          saveError = 'A new week started before the copy went through, so nothing was copied. Please try again.';
+        } else {
+          try {
+            const result = await updateSchedule(basedOn, (current) => copyWeek(current, from, to));
+            if (result.ok) return Astro.redirect(weekUrl(to, '&copied=1'), 303);
+            saveError =
+              'Someone else changed the schedule just before you copied, so nothing was copied. Check the weeks below and try again.';
+          } catch (err) {
+            console.error('do-i-work: copy failed', err);
+            saveError = 'The schedule could not be copied. Please try again in a moment.';
+          }
         }
       }
     } else if (!role) {
@@ -184,26 +238,64 @@ if (authorised) {
 }
 
 const params = Astro.url.searchParams;
+const selectedWeek = draft ? draft.weekOf : params.get('week') === 'next' ? NEXT_WEEK : CURRENT_WEEK;
+
 const editing = isEditor && !storageError && (params.has('edit') || draft !== null);
-const justSaved = params.has('saved') && !editing;
+const notice = editing
+  ? null
+  : params.has('saved')
+    ? 'Schedule saved. Staff will see these changes now.'
+    : params.has('copied')
+      ? `Shifts copied into ${weekLabel(selectedWeek).toLowerCase()}. Review them below and edit anything that differs.`
+      : null;
 
 /** What the edit form shows: the refused draft if there is one, else what is stored. */
-const formData = draft ?? schedule;
+const edit = draft ?? weekEditFrom(schedule, selectedWeek);
 const basedOn = draft ? draftBasedOn : schedule.updatedAt;
 
+/** Errors keyed `row-day` (or `row-name`) for display beside the field. */
+const errorAt = new Map(draftErrors.map((e) => [`${e.row}-${e.day ?? 'name'}`, e.message]));
+const rowLabel = (row: number) => edit.employees[row]?.name || `Row ${row + 1}`;
+
 const today = todayIso();
-const dates = weekDates(schedule.weekOf);
-const currentWeek = mondayOf(today);
-const isPastWeek = schedule.weekOf < currentWeek;
+const dates = weekDates(selectedWeek);
+const week = getWeek(schedule, selectedWeek);
+const hasShifts = weekHasShifts(schedule, selectedWeek);
+const currentHasShifts = weekHasShifts(schedule, CURRENT_WEEK);
+const nextHasShifts = weekHasShifts(schedule, NEXT_WEEK);
 
 const daysOffByDate = new Map<string, DayOff>(schedule.daysOff.map((d) => [d.date, d]));
+const dayOffDates = new Set(daysOffByDate.keys());
 const upcomingDaysOff = schedule.daysOff.filter((d) => d.date >= today);
+const currentWeekDates = Object.values(weekDates(CURRENT_WEEK));
+const nextWeekDates = Object.values(weekDates(NEXT_WEEK));
 
-/** Shift values that mean "not working" — rendered muted so working days stand out. */
-const isOffValue = (value: string) => /^(off|pto|vacation|holiday|sick|closed)$/i.test(value.trim());
+/**
+ * Both copy directions, offered whenever there is a roster. Copying over a week
+ * that already has shifts asks first, and says so plainly when the source is
+ * empty — that copy clears the target rather than filling it.
+ */
+const capitalise = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
+const copyConfirm = (sourceHasShifts: boolean, source: string, target: string) =>
+  sourceHasShifts
+    ? `Replace ${target}'s shifts with ${source}'s? ${capitalise(target)}'s current shifts will be lost.`
+    : `${capitalise(source)} has no shifts entered, so copying will clear ${target}'s shifts. Continue?`;
 
-const inputClass =
-  'w-full rounded-lg border border-(--border-strong) bg-(--surface-page) px-2.5 py-1.5 text-sm text-(--text-strong) placeholder:text-(--text-muted)';
+const copyActions = [
+  {
+    from: CURRENT_WEEK,
+    to: NEXT_WEEK,
+    label: 'Copy this week to next week',
+    confirm: nextHasShifts ? copyConfirm(currentHasShifts, 'this week', 'next week') : '',
+  },
+  {
+    from: NEXT_WEEK,
+    to: CURRENT_WEEK,
+    label: 'Copy next week to this week',
+    confirm: currentHasShifts ? copyConfirm(nextHasShifts, 'next week', 'this week') : '',
+  },
+];
+
 const thClass =
   'px-3 py-2.5 text-left text-xs font-semibold tracking-wide whitespace-nowrap uppercase text-(--text-muted)';
 const sectionTitle = 'text-xl font-bold text-(--text-strong) sm:text-2xl';
@@ -213,7 +305,7 @@ const sectionTitle = 'text-xl font-bold text-(--text-strong) sm:text-2xl';
   title="Do I Work"
   kicker="Restricted"
   description="This page is password protected."
-  lead={authorised ? 'Weekly staff schedule and company days off.' : 'This page is password protected.'}
+  lead={authorised ? 'Staff schedule for this week and next, plus company days off.' : 'This page is password protected.'}
   noindex
 >
   <Container width={authorised ? (editing ? 'wide' : 'content') : 'prose'} class="py-section">
@@ -251,26 +343,37 @@ const sectionTitle = 'text-xl font-bold text-(--text-strong) sm:text-2xl';
               )}
             </div>
 
-            <div class="flex flex-wrap items-center gap-3">
-              {isEditor && !editing && !storageError && (
-                <Button href={`${PAGE}?edit=1`}>Edit schedule</Button>
-              )}
-              <form method="POST" action="/do-i-work/logout">
-                <Button type="submit" variant="secondary">Sign out</Button>
-              </form>
-            </div>
+            <form method="POST" action="/do-i-work/logout">
+              <Button type="submit" variant="secondary">Sign out</Button>
+            </form>
           </div>
 
-          {justSaved && (
+          {notice && (
             <div role="status" class="flex items-start gap-3 rounded-(--radius-card) border-l-4 border-(--accent) bg-(--accent-subtle-bg) p-5">
               <Icon name="check" size={20} class="mt-0.5 text-(--accent)" />
-              <p class="text-sm font-medium text-(--text-strong)">Schedule saved. Staff will see these changes now.</p>
+              <p class="text-sm font-medium text-(--text-strong)">{notice}</p>
             </div>
           )}
 
           {saveError && (
             <div role="alert" class="rounded-(--radius-card) border-l-4 border-(--accent) bg-(--accent-subtle-bg) p-5">
               <p class="text-sm font-medium text-(--text-strong)">{saveError}</p>
+              {draftErrors.length > 0 && (
+                <ul class="mt-2 list-disc space-y-1 pl-5 text-sm text-(--text-body)">
+                  {draftErrors.map((e) => (
+                    <li>
+                      <a
+                        href={`#${e.day ? `emp-${e.row}-${e.day}-start` : `emp-${e.row}-name`}`}
+                        class="underline-offset-4 hover:underline"
+                      >
+                        {rowLabel(e.row)}
+                        {e.day && `, ${DAY_LABELS[e.day]} ${formatShort(dates[e.day])}`}
+                      </a>
+                      : {e.message}
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           )}
 
@@ -284,131 +387,95 @@ const sectionTitle = 'text-xl font-bold text-(--text-strong) sm:text-2xl';
             </div>
           ) : editing ? (
             /* ================================================================
-               EDIT MODE — one plain HTML form. Blank rows at the end of each
-               table add entries; the Remove box drops one on save.
+               EDIT MODE — one form for one week. "Add" buttons clone a
+               <template> row in the browser; the Remove box drops a saved row
+               on save.
                ================================================================ */
-            <form method="POST" action={PAGE} class="flex flex-col gap-10">
+            <form method="POST" action={weekUrl(selectedWeek)} class="flex flex-col gap-10">
               <input type="hidden" name="intent" value="save" />
+              <input type="hidden" name="weekOf" value={selectedWeek} />
               <input type="hidden" name="basedOn" value={basedOn ?? ''} />
-              <input type="hidden" name="emp-count" value={formData.employees.length + BLANK_ROWS} />
-              <input type="hidden" name="off-count" value={formData.daysOff.length + BLANK_ROWS} />
-
-              <datalist id="shift-options">
-                <option value="Off" />
-                <option value="PTO" />
-                <option value="On call" />
-                <option value="6:00a–2:30p" />
-                <option value="7:00a–3:30p" />
-                <option value="8:00a–5:00p" />
-                <option value="2:00p–10:30p" />
-                <option value="10:00p–6:30a" />
-              </datalist>
+              {/* The next free row index. "Add" increments it. */}
+              <input type="hidden" name="emp-count" value={edit.employees.length} />
+              <input type="hidden" name="off-count" value={edit.daysOff.length} />
 
               <section class="flex flex-col gap-5">
-                <h2 class={sectionTitle}>Week details</h2>
-                <div class="grid gap-5 sm:grid-cols-[16rem_1fr]">
-                  <div class="flex flex-col gap-1.5">
-                    <label for="weekOf" class="text-sm font-semibold text-(--text-strong)">Week of</label>
-                    <input type="date" id="weekOf" name="weekOf" required value={formData.weekOf} class={inputClass} />
-                    <p class="text-xs text-(--text-muted)">Any date works — it snaps to that week's Monday.</p>
-                  </div>
-                  <div class="flex flex-col gap-1.5">
-                    <label for="notes" class="text-sm font-semibold text-(--text-strong)">
-                      Notes for the week <span class="font-normal text-(--text-muted)">(optional)</span>
-                    </label>
-                    <textarea id="notes" name="notes" rows="3" maxlength={LIMITS.notes} class={inputClass}>{formData.notes}</textarea>
-                  </div>
+                <div>
+                  <p class="text-xs font-semibold tracking-wide uppercase text-(--accent)">Editing {weekLabel(selectedWeek).toLowerCase()}</p>
+                  <h2 class={sectionTitle}>Week of {formatLong(selectedWeek)}</h2>
+                </div>
+                <div class="flex max-w-3xl flex-col gap-1.5">
+                  <label for="notes" class="text-sm font-semibold text-(--text-strong)">
+                    Notes for the week <span class="font-normal text-(--text-muted)">(optional)</span>
+                  </label>
+                  <textarea id="notes" name="notes" rows="3" maxlength={LIMITS.notes} class={inputClass}>{edit.notes}</textarea>
                 </div>
               </section>
 
               <section class="flex flex-col gap-4">
                 <div>
-                  <h2 class={sectionTitle}>Weekly schedule</h2>
+                  <h3 class="text-lg font-bold text-(--text-strong)">Shifts</h3>
                   <p class="mt-1 text-sm text-(--text-muted)">
-                    Type a shift or pick a suggestion. Leave a day blank if it is not set. Fill in a
-                    blank row at the bottom to add someone.
+                    Choose <strong class="font-semibold text-(--text-body)">Set hours</strong> on a row,
+                    or click any day, to pick a start and end time and the days it applies to. Names
+                    and positions are shared by both weeks.
                   </p>
                 </div>
 
                 <div class="scroll-x rounded-(--radius-card) border border-(--border-subtle) bg-(--surface-raised)">
-                  <table class="w-full min-w-[68rem] border-collapse text-sm">
+                  <table class="w-full min-w-[66rem] border-collapse text-sm">
                     <thead class="border-b border-(--border-subtle) bg-(--surface-sunken)">
                       <tr>
-                        <th scope="col" class={thClass}>Name</th>
-                        <th scope="col" class={thClass}>Position</th>
-                        {DAYS.map((day) => (
-                          <th scope="col" class={thClass}>{DAY_LABELS[day]}</th>
-                        ))}
+                        <th scope="col" class={thClass}>Employee</th>
+                        {DAYS.map((day) => {
+                          const off = daysOffByDate.get(dates[day]);
+                          return (
+                            <th scope="col" class:list={['px-2 py-2.5 text-left align-bottom whitespace-nowrap', off && 'bg-(--accent-subtle-bg)']}>
+                              <span class="block text-xs font-semibold tracking-wide uppercase text-(--text-muted)">{DAY_LABELS[day]}</span>
+                              <span class="block text-sm font-semibold text-(--text-strong)">{formatShort(dates[day])}</span>
+                              {off && <span class="block text-xs font-semibold text-(--accent-subtle-text)" title={off.name}>Day off</span>}
+                            </th>
+                          );
+                        })}
                         <th scope="col" class={thClass}>Remove</th>
                       </tr>
                     </thead>
-                    <tbody>
-                      {[...formData.employees, ...Array.from({ length: BLANK_ROWS }, () => null)].map((emp, i) => (
-                        <tr class:list={['border-b border-(--border-subtle) last:border-b-0', !emp && 'bg-(--surface-sunken)/50']}>
-                          <td class="min-w-44 px-2 py-2">
-                            <input type="hidden" name={`emp-${i}-id`} value={emp?.id ?? ''} />
-                            <input
-                              type="text"
-                              name={`emp-${i}-name`}
-                              value={emp?.name ?? ''}
-                              maxlength={LIMITS.name}
-                              placeholder={emp ? '' : 'Add employee…'}
-                              aria-label={emp ? `Name, row ${i + 1}` : `New employee name, row ${i + 1}`}
-                              class:list={[inputClass, 'font-semibold']}
-                            />
-                          </td>
-                          <td class="min-w-36 px-2 py-2">
-                            <input
-                              type="text"
-                              name={`emp-${i}-role`}
-                              value={emp?.role ?? ''}
-                              maxlength={LIMITS.role}
-                              placeholder="e.g. Driver"
-                              aria-label={`Position, row ${i + 1}`}
-                              class={inputClass}
-                            />
-                          </td>
-                          {DAYS.map((day) => (
-                            <td class="min-w-28 px-1.5 py-2">
-                              <input
-                                type="text"
-                                name={`emp-${i}-${day}`}
-                                value={emp?.shifts[day] ?? ''}
-                                maxlength={LIMITS.shift}
-                                list="shift-options"
-                                aria-label={`${DAY_LABELS[day]}, row ${i + 1}`}
-                                class={inputClass}
-                              />
-                            </td>
-                          ))}
-                          <td class="px-3 py-2 text-center">
-                            {emp && (
-                              <input
-                                type="checkbox"
-                                name={`emp-${i}-remove`}
-                                value="1"
-                                aria-label={`Remove ${emp.name}`}
-                                class="h-4 w-4 accent-(--accent)"
-                              />
-                            )}
+                    <tbody id="emp-rows">
+                      {edit.employees.map((emp, i) => (
+                        <EmployeeEditRow index={i} emp={emp} dates={dates} dayOffDates={dayOffDates} errorAt={errorAt} />
+                      ))}
+                      {edit.employees.length === 0 && (
+                        <tr data-empty>
+                          <td colspan={DAYS.length + 2} class="px-4 py-6 text-center text-sm text-(--text-muted)">
+                            No one on the schedule yet. Use Add New Employee below.
                           </td>
                         </tr>
-                      ))}
+                      )}
                     </tbody>
                   </table>
                 </div>
-                <p class="text-xs text-(--text-muted)">
-                  Everyone with the staff password can see this page. Keep it to names, positions
-                  and shifts, with no phone numbers or other personal details.
-                </p>
+                <template id="emp-row-template">
+                  <EmployeeEditRow dates={dates} dayOffDates={dayOffDates} />
+                </template>
+                <ShiftDialog dates={dates} dayOffDates={dayOffDates} />
+                <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
+                  <Button type="button" variant="secondary" data-add-row="emp">
+                    <Icon name="plus" size={16} />
+                    Add New Employee
+                  </Button>
+                  <p class="text-xs text-(--text-muted)">
+                    Removing someone takes them off both weeks. Everyone with the staff password can
+                    see this page, so keep it to names, positions and shifts.
+                  </p>
+                </div>
               </section>
 
               <section class="flex flex-col gap-4">
                 <div>
-                  <h2 class={sectionTitle}>Company days off</h2>
+                  <h3 class="text-lg font-bold text-(--text-strong)">Company days off</h3>
                   <p class="mt-1 text-sm text-(--text-muted)">
-                    Days that apply to everyone. Staff only see upcoming ones; past dates stay here
-                    until you remove them.
+                    Days that apply to everyone, in any week. Staff only see upcoming ones; past
+                    dates stay here until you remove them.
                   </p>
                 </div>
 
@@ -422,73 +489,37 @@ const sectionTitle = 'text-xl font-bold text-(--text-strong) sm:text-2xl';
                         <th scope="col" class={thClass}>Remove</th>
                       </tr>
                     </thead>
-                    <tbody>
-                      {[...formData.daysOff, ...Array.from({ length: BLANK_ROWS }, () => null)].map((off, i) => (
-                        <tr class:list={['border-b border-(--border-subtle) last:border-b-0', !off && 'bg-(--surface-sunken)/50']}>
-                          <td class="w-48 px-2 py-2">
-                            <input type="hidden" name={`off-${i}-id`} value={off?.id ?? ''} />
-                            <div class="flex items-center gap-2">
-                              <input
-                                type="date"
-                                name={`off-${i}-date`}
-                                value={off?.date ?? ''}
-                                aria-label={`Date, row ${i + 1}`}
-                                class={inputClass}
-                              />
-                              {off && off.date < today && (
-                                <span class="text-xs font-semibold uppercase text-(--text-muted)">Past</span>
-                              )}
-                            </div>
-                          </td>
-                          <td class="min-w-52 px-2 py-2">
-                            <input
-                              type="text"
-                              name={`off-${i}-name`}
-                              value={off?.name ?? ''}
-                              maxlength={LIMITS.dayOffName}
-                              placeholder={off ? '' : 'e.g. Thanksgiving'}
-                              aria-label={`Name, row ${i + 1}`}
-                              class={inputClass}
-                            />
-                          </td>
-                          <td class="min-w-64 px-2 py-2">
-                            <input
-                              type="text"
-                              name={`off-${i}-note`}
-                              value={off?.note ?? ''}
-                              maxlength={LIMITS.dayOffNote}
-                              placeholder="Optional"
-                              aria-label={`Note, row ${i + 1}`}
-                              class={inputClass}
-                            />
-                          </td>
-                          <td class="px-3 py-2 text-center">
-                            {off && (
-                              <input
-                                type="checkbox"
-                                name={`off-${i}-remove`}
-                                value="1"
-                                aria-label={`Remove ${off.name}`}
-                                class="h-4 w-4 accent-(--accent)"
-                              />
-                            )}
+                    <tbody id="off-rows">
+                      {edit.daysOff.map((off, i) => (
+                        <DayOffEditRow index={i} off={off} today={today} />
+                      ))}
+                      {edit.daysOff.length === 0 && (
+                        <tr data-empty>
+                          <td colspan="4" class="px-4 py-6 text-center text-sm text-(--text-muted)">
+                            No company days off yet. Use Add New Company Holiday below.
                           </td>
                         </tr>
-                      ))}
+                      )}
                     </tbody>
                   </table>
                 </div>
+                <template id="off-row-template">
+                  <DayOffEditRow today={today} />
+                </template>
+                <div>
+                  <Button type="button" variant="secondary" data-add-row="off">
+                    <Icon name="plus" size={16} />
+                    Add New Company Holiday
+                  </Button>
+                </div>
               </section>
 
-              <div class="sticky bottom-0 z-10 -mx-5 flex flex-wrap items-center gap-3 border-t border-(--border-subtle) bg-(--surface-page)/90 px-5 py-4 backdrop-blur-md sm:-mx-8 sm:px-8">
+              <div class="sticky bottom-0 z-20 -mx-5 flex flex-wrap items-center gap-3 border-t border-(--border-subtle) bg-(--surface-page)/90 px-5 py-4 backdrop-blur-md sm:-mx-8 sm:px-8">
                 <Button type="submit">
                   <Icon name="check" size={16} />
-                  Save schedule
+                  Save {weekLabel(selectedWeek).toLowerCase()}
                 </Button>
-                <Button href={PAGE} variant="ghost">Cancel</Button>
-                <span class="text-xs text-(--text-muted)">
-                  To add more than {BLANK_ROWS} rows at once, save and edit again.
-                </span>
+                <Button href={weekUrl(selectedWeek)} variant="ghost">Cancel</Button>
               </div>
             </form>
           ) : (
@@ -497,37 +528,95 @@ const sectionTitle = 'text-xl font-bold text-(--text-strong) sm:text-2xl';
                ================================================================ */
             <>
               <section class="flex flex-col gap-5">
-                <div class="flex flex-col gap-1">
-                  <h2 class={sectionTitle}>Weekly schedule</h2>
-                  <p class="text-sm font-medium text-(--text-body)">Week of {formatLong(schedule.weekOf)}</p>
+                <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+                  <div class="flex flex-col gap-3">
+                    <h2 class={sectionTitle}>Weekly schedule</h2>
+                    <nav aria-label="Choose week" class="inline-flex w-fit gap-1 rounded-full border border-(--border-subtle) bg-(--surface-sunken) p-1">
+                      {[CURRENT_WEEK, NEXT_WEEK].map((w) => (
+                        <a
+                          href={weekUrl(w)}
+                          aria-current={w === selectedWeek ? 'page' : undefined}
+                          class:list={[
+                            'rounded-full px-4 py-1.5 text-sm font-semibold whitespace-nowrap transition-colors',
+                            w === selectedWeek
+                              ? 'bg-(--surface-raised) text-(--text-strong) shadow-(--shadow-card)'
+                              : 'text-(--text-muted) hover:text-(--text-strong)',
+                          ]}
+                        >
+                          {weekLabel(w)}
+                          <span class="ml-1 font-normal text-(--text-muted)">{formatShort(w)}</span>
+                        </a>
+                      ))}
+                    </nav>
+                    <p class="text-sm font-medium text-(--text-body)">
+                      {formatShort(dates.mon)} – {formatShort(dates.sun)}
+                    </p>
+                  </div>
+
+                  {isEditor && (
+                    <Button href={weekUrl(selectedWeek, '&edit=1')} class="w-fit">
+                      Edit {weekLabel(selectedWeek).toLowerCase()}
+                    </Button>
+                  )}
                 </div>
 
-                {isPastWeek && schedule.employees.length > 0 && (
-                  <p class="rounded-lg bg-(--surface-sunken) px-4 py-3 text-sm text-(--text-body)">
-                    This schedule is for a past week and has not been updated yet. Check with
-                    dispatch to confirm your shifts.
-                  </p>
-                )}
-
-                {schedule.notes && (
-                  <div class="rounded-(--radius-card) border-l-4 border-(--accent) bg-(--surface-sunken) p-5">
-                    <p class="text-xs font-semibold tracking-wide uppercase text-(--text-muted)">Notes</p>
-                    <p class="mt-1.5 text-sm leading-relaxed whitespace-pre-line text-(--text-body)">{schedule.notes}</p>
+                {isEditor && schedule.employees.length > 0 && (
+                  <div class="flex flex-col gap-3 rounded-(--radius-card) border border-dashed border-(--border-strong) p-4 sm:flex-row sm:flex-wrap sm:items-center">
+                    <span class="text-xs font-semibold tracking-wide uppercase text-(--text-muted)">Copy shifts</span>
+                    {copyActions.map((action) => (
+                      <form method="POST" action={weekUrl(selectedWeek)} data-confirm={action.confirm || undefined}>
+                        <input type="hidden" name="intent" value="copy" />
+                        <input type="hidden" name="from" value={action.from} />
+                        <input type="hidden" name="to" value={action.to} />
+                        <input type="hidden" name="basedOn" value={schedule.updatedAt ?? ''} />
+                        <Button type="submit" variant="secondary">
+                          {action.label}
+                          <Icon name="arrow-right" size={16} />
+                        </Button>
+                      </form>
+                    ))}
+                    <p class="text-xs text-(--text-muted) sm:basis-full">
+                      Copying replaces the other week's shifts. Each week keeps its own notes.
+                    </p>
                   </div>
                 )}
 
-                {schedule.employees.length === 0 ? (
+                {week.notes && (
+                  <div class="rounded-(--radius-card) border-l-4 border-(--accent) bg-(--surface-sunken) p-5">
+                    <p class="text-xs font-semibold tracking-wide uppercase text-(--text-muted)">Notes</p>
+                    <p class="mt-1.5 text-sm leading-relaxed whitespace-pre-line text-(--text-body)">{week.notes}</p>
+                  </div>
+                )}
+
+                {/*
+                  Staff see the table only once shifts are posted: a roster of
+                  people all marked "Off" would read as a real answer. Editors
+                  always see the roster, with a note while the week is empty.
+                */}
+                {isEditor && schedule.employees.length > 0 && !hasShifts && (
+                  <p class="rounded-lg bg-(--surface-sunken) px-4 py-3 text-sm text-(--text-body)">
+                    No shifts entered for {weekLabel(selectedWeek).toLowerCase()} yet, so staff see
+                    &ldquo;not posted yet&rdquo; for this week. Edit the week to add times, or copy
+                    them from the other week.
+                  </p>
+                )}
+
+                {schedule.employees.length === 0 || (!hasShifts && !isEditor) ? (
                   <div class="rounded-(--radius-card) border border-dashed border-(--border-strong) bg-(--surface-sunken) p-8 text-center">
                     <Icon name="clock" size={24} class="mx-auto text-(--text-muted)" />
-                    <p class="mt-3 font-semibold text-(--text-strong)">No schedule posted yet</p>
+                    <p class="mt-3 font-semibold text-(--text-strong)">
+                      {weekLabel(selectedWeek)}&rsquo;s schedule hasn&rsquo;t been posted yet
+                    </p>
                     <p class="mt-1 text-sm text-(--text-muted)">
-                      {isEditor ? 'Choose Edit schedule to add employees and shifts.' : 'Check back soon, or call dispatch to confirm your shift.'}
+                      {isEditor
+                        ? 'Edit this week to add employees and their shifts.'
+                        : 'Check back soon, or call dispatch to confirm your shift.'}
                     </p>
                   </div>
                 ) : (
                   <div class="scroll-x rounded-(--radius-card) border border-(--border-subtle) bg-(--surface-raised) shadow-(--shadow-card)">
-                    <table class="w-full min-w-[52rem] border-collapse text-sm">
-                      <caption class="sr-only">Staff schedule for the week of {formatLong(schedule.weekOf)}</caption>
+                    <table class="w-full min-w-[60rem] border-collapse text-sm">
+                      <caption class="sr-only">Staff schedule for the week of {formatLong(selectedWeek)}</caption>
                       <thead class="border-b border-(--border-subtle) bg-(--surface-sunken)">
                         <tr>
                           <th scope="col" class:list={[thClass, 'sticky left-0 z-10 bg-(--surface-sunken)']}>Employee</th>
@@ -537,10 +626,7 @@ const sectionTitle = 'text-xl font-bold text-(--text-strong) sm:text-2xl';
                             return (
                               <th
                                 scope="col"
-                                class:list={[
-                                  'px-3 py-2.5 text-left align-bottom whitespace-nowrap',
-                                  off && 'bg-(--accent-subtle-bg)',
-                                ]}
+                                class:list={['px-3 py-2.5 text-left align-bottom whitespace-nowrap', off && 'bg-(--accent-subtle-bg)']}
                               >
                                 <span class:list={['block text-xs font-semibold tracking-wide uppercase', date === today ? 'text-(--accent)' : 'text-(--text-muted)']}>
                                   {DAY_LABELS[day]}
@@ -558,29 +644,31 @@ const sectionTitle = 'text-xl font-bold text-(--text-strong) sm:text-2xl';
                         </tr>
                       </thead>
                       <tbody>
-                        {schedule.employees.map((emp) => (
-                          <tr class="border-b border-(--border-subtle) last:border-b-0 hover:bg-(--surface-sunken)/60">
-                            <th scope="row" class="sticky left-0 z-10 min-w-40 bg-(--surface-raised) px-3 py-3 text-left font-normal">
-                              <span class="block font-semibold text-(--text-strong)">{emp.name}</span>
-                              {emp.role && <span class="block text-xs text-(--text-muted)">{emp.role}</span>}
-                            </th>
-                            {DAYS.map((day) => {
-                              const value = emp.shifts[day];
-                              const off = daysOffByDate.has(dates[day]);
-                              return (
-                                <td class:list={['px-3 py-3 whitespace-nowrap tabular-nums', off && 'bg-(--accent-subtle-bg)/60']}>
-                                  {!value ? (
-                                    <span class="text-(--text-muted)" aria-label="Not set">—</span>
-                                  ) : isOffValue(value) ? (
-                                    <span class="text-(--text-muted)">{value}</span>
-                                  ) : (
-                                    <span class="font-medium text-(--text-strong)">{value}</span>
-                                  )}
-                                </td>
-                              );
-                            })}
-                          </tr>
-                        ))}
+                        {schedule.employees.map((emp) => {
+                          const shifts = week.shifts[emp.id];
+                          return (
+                            <tr class="border-b border-(--border-subtle) last:border-b-0 hover:bg-(--surface-sunken)/60">
+                              <th scope="row" class="sticky left-0 z-10 min-w-40 bg-(--surface-raised) px-3 py-3 text-left font-normal">
+                                <span class="block font-semibold text-(--text-strong)">{emp.name}</span>
+                                {emp.role && <span class="block text-xs text-(--text-muted)">{emp.role}</span>}
+                              </th>
+                              {DAYS.map((day) => {
+                                const shift = shifts?.[day];
+                                return (
+                                  <td class:list={['px-3 py-3 whitespace-nowrap tabular-nums', daysOffByDate.has(dates[day]) && 'bg-(--accent-subtle-bg)/60']}>
+                                    {shift ? (
+                                      <span class="font-medium text-(--text-strong)">{formatShift(shift)}</span>
+                                    ) : hasShifts ? (
+                                      <span class="text-(--text-muted)">Off</span>
+                                    ) : (
+                                      <span class="text-(--text-muted)" aria-label="Not entered">—</span>
+                                    )}
+                                  </td>
+                                );
+                              })}
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
@@ -610,8 +698,10 @@ const sectionTitle = 'text-xl font-bold text-(--text-strong) sm:text-2xl';
                               <span class="font-semibold text-(--text-strong)">{formatLong(off.date)}</span>
                               {off.date === today ? (
                                 <span class="ml-2 rounded-full bg-(--accent) px-2 py-0.5 text-[0.65rem] font-semibold uppercase text-(--accent-on)">Today</span>
-                              ) : Object.values(dates).includes(off.date) ? (
+                              ) : currentWeekDates.includes(off.date) ? (
                                 <span class="ml-2 rounded-full bg-(--accent-subtle-bg) px-2 py-0.5 text-[0.65rem] font-semibold uppercase text-(--accent-subtle-text)">This week</span>
+                              ) : nextWeekDates.includes(off.date) ? (
+                                <span class="ml-2 rounded-full bg-(--surface-sunken) px-2 py-0.5 text-[0.65rem] font-semibold uppercase text-(--text-muted)">Next week</span>
                               ) : null}
                             </td>
                             <td class="px-3 py-3 font-medium text-(--text-strong)">{off.name}</td>
@@ -682,3 +772,223 @@ const sectionTitle = 'text-xl font-bold text-(--text-strong) sm:text-2xl';
     }
   </Container>
 </PageLayout>
+
+<script>
+  import { ROW_INDEX, ROW_NUMBER } from '../components/schedule/classes';
+  import { formatShift } from '../lib/time';
+
+  /*
+   * Everything here is editor convenience. The server validates every save
+   * regardless, so nothing below is a security boundary.
+   */
+
+  /* ------------------------------------------------------------------------ */
+  /* Set hours dialog                                                          */
+  /* ------------------------------------------------------------------------ */
+
+  /*
+   * One dialog serves every row. It is opened from a row's "Set hours" button
+   * or from a day cell, and writes the chosen times into that row's hidden
+   * `emp-N-day-start` / `-end` inputs — the same fields the server has always
+   * read — then refreshes the cell labels.
+   */
+  const dialog = document.getElementById('shift-dialog') as HTMLDialogElement | null;
+
+  if (dialog) {
+    const $ = <T extends Element>(selector: string) => dialog.querySelector<T>(selector) as T;
+    const startInput = $<HTMLInputElement>('[data-dialog-start]');
+    const endInput = $<HTMLInputElement>('[data-dialog-end]');
+    const nameEl = $<HTMLElement>('[data-dialog-name]');
+    const errorEl = $<HTMLElement>('[data-dialog-error]');
+    const presetsEl = $<HTMLElement>('[data-dialog-presets]');
+    const dayBoxes = [...dialog.querySelectorAll<HTMLInputElement>('[data-dialog-day]')];
+    const allDays = dayBoxes.map((box) => box.value);
+
+    const DAY_SETS: Record<string, string[]> = {
+      weekdays: allDays.slice(0, 5),
+      weekend: allDays.slice(5),
+      all: allDays,
+      none: [],
+    };
+
+    let row: HTMLElement | null = null;
+    let returnFocus: HTMLElement | null = null;
+
+    const cellFor = (r: HTMLElement, day: string) => r.querySelector<HTMLElement>(`[data-day-cell="${day}"]`)!;
+    const readCell = (cell: HTMLElement) => ({
+      start: cell.querySelector<HTMLInputElement>('[data-start]')!.value,
+      end: cell.querySelector<HTMLInputElement>('[data-end]')!.value,
+    });
+    const isShift = (t: { start: string; end: string }) => Boolean(t.start && t.end);
+
+    const showError = (message: string) => {
+      errorEl.textContent = message;
+      errorEl.hidden = !message;
+    };
+
+    function writeCell(cell: HTMLElement, start: string, end: string) {
+      cell.querySelector<HTMLInputElement>('[data-start]')!.value = start;
+      cell.querySelector<HTMLInputElement>('[data-end]')!.value = end;
+
+      const button = cell.querySelector<HTMLButtonElement>('[data-edit-day]')!;
+      const text = start && end ? formatShift({ start, end }) : 'Off';
+      const who = row?.querySelector<HTMLInputElement>('[data-emp-name]')?.value || 'New employee';
+      button.textContent = text;
+      button.dataset.set = String(Boolean(start && end));
+      button.removeAttribute('aria-invalid');
+      button.setAttribute('aria-label', `${who}, ${cell.dataset.dayCell}: ${text}. Change hours`);
+      cell.querySelector('[data-cell-error]')?.remove();
+    }
+
+    /** Distinct shifts already used anywhere in this week, as one-click presets. */
+    function renderPresets() {
+      presetsEl.querySelectorAll('[data-preset]').forEach((el) => el.remove());
+      const seen = new Map<string, { start: string; end: string }>();
+      document.querySelectorAll<HTMLElement>('[data-day-cell]').forEach((cell) => {
+        const t = readCell(cell);
+        if (isShift(t) && t.start < t.end) seen.set(`${t.start}-${t.end}`, t);
+      });
+
+      const presets = [...seen.values()].sort((a, b) => a.start.localeCompare(b.start)).slice(0, 8);
+      for (const t of presets) {
+        const chip = document.createElement('button');
+        chip.type = 'button';
+        chip.dataset.preset = '';
+        chip.className =
+          'rounded-full border border-(--border-strong) px-3 py-1 text-xs font-semibold tabular-nums text-(--text-body) hover:border-(--accent) hover:text-(--accent)';
+        chip.textContent = formatShift(t);
+        chip.addEventListener('click', () => {
+          startInput.value = t.start;
+          endInput.value = t.end;
+          showError('');
+        });
+        presetsEl.append(chip);
+      }
+      presetsEl.hidden = presets.length === 0;
+    }
+
+    function openFor(targetRow: HTMLElement, day: string | null, trigger: HTMLElement) {
+      row = targetRow;
+      returnFocus = trigger;
+      nameEl.textContent = row.querySelector<HTMLInputElement>('[data-emp-name]')?.value || 'New employee';
+
+      // From a day cell: that day and its times. From "Set hours": the row's
+      // first shift, with every day already on those exact hours ticked, so
+      // changing a regular pattern is one edit.
+      const seed = day
+        ? readCell(cellFor(row, day))
+        : allDays.map((d) => readCell(cellFor(targetRow, d))).find(isShift) ?? { start: '', end: '' };
+
+      startInput.value = seed.start;
+      endInput.value = seed.end;
+      for (const box of dayBoxes) {
+        const t = readCell(cellFor(row, box.value));
+        box.checked = day ? box.value === day : isShift(seed) && t.start === seed.start && t.end === seed.end;
+      }
+
+      showError('');
+      renderPresets();
+      dialog!.showModal();
+      startInput.focus();
+    }
+
+    const selectedDays = () => dayBoxes.filter((box) => box.checked).map((box) => box.value);
+
+    function close() {
+      dialog!.close();
+    }
+
+    dialog.addEventListener('close', () => {
+      returnFocus?.focus();
+      row = null;
+    });
+
+    // Any change to the times or days makes the last complaint stale.
+    dialog.addEventListener('input', () => showError(''));
+
+    // A click on the backdrop lands on the <dialog> element itself.
+    dialog.addEventListener('click', (event) => {
+      if (event.target === dialog) close();
+    });
+    dialog.querySelectorAll('[data-dialog-close]').forEach((el) => el.addEventListener('click', close));
+
+    dialog.querySelectorAll<HTMLButtonElement>('[data-select-days]').forEach((button) =>
+      button.addEventListener('click', () => {
+        const set = DAY_SETS[button.dataset.selectDays ?? ''] ?? [];
+        dayBoxes.forEach((box) => (box.checked = set.includes(box.value)));
+        showError('');
+      })
+    );
+
+    $<HTMLButtonElement>('[data-dialog-apply]').addEventListener('click', () => {
+      const start = startInput.value;
+      const end = endInput.value;
+      const days = selectedDays();
+
+      if (!start || !end) return showError('Choose both a start time and an end time.');
+      // `HH:MM` strings compare correctly as text.
+      if (start >= end) return showError('The start time must be earlier than the end time.');
+      if (!days.length) return showError('Choose at least one day.');
+
+      days.forEach((d) => writeCell(cellFor(row!, d), start, end));
+      close();
+    });
+
+    $<HTMLButtonElement>('[data-dialog-off]').addEventListener('click', () => {
+      const days = selectedDays();
+      if (!days.length) return showError('Choose at least one day to mark off.');
+      days.forEach((d) => writeCell(cellFor(row!, d), '', ''));
+      close();
+    });
+
+    // Delegated, so rows added with "Add New Employee" work too.
+    document.addEventListener('click', (event) => {
+      const target = event.target as Element;
+      const trigger = target.closest?.<HTMLElement>('[data-set-hours], [data-edit-day]');
+      const targetRow = trigger?.closest<HTMLElement>('[data-emp-row]');
+      if (!trigger || !targetRow) return;
+      openFor(targetRow, trigger.dataset.editDay ?? null, trigger);
+    });
+  }
+
+  /* ------------------------------------------------------------------------ */
+  /* Adding and discarding rows                                                */
+  /* ------------------------------------------------------------------------ */
+
+  /*
+   * "Add New Employee" / "Add New Company Holiday": clone the row <template>,
+   * give it the next free index, and bump the count the server reads up to.
+   */
+  for (const button of document.querySelectorAll<HTMLButtonElement>('[data-add-row]')) {
+    const kind = button.dataset.addRow;
+    const template = document.getElementById(`${kind}-row-template`) as HTMLTemplateElement | null;
+    const body = document.getElementById(`${kind}-rows`);
+    const counter = document.querySelector<HTMLInputElement>(`input[name="${kind}-count"]`);
+    if (!template || !body || !counter) continue;
+
+    button.addEventListener('click', () => {
+      const index = Number(counter.value) || 0;
+      const html = template.innerHTML
+        .replaceAll(ROW_INDEX, String(index))
+        .replaceAll(ROW_NUMBER, String(index + 1));
+
+      body.querySelector('[data-empty]')?.remove();
+      body.insertAdjacentHTML('beforeend', html);
+      counter.value = String(index + 1);
+      body.lastElementChild?.querySelector<HTMLInputElement>('input:not([type="hidden"])')?.focus();
+    });
+  }
+
+  /* A row added in this session and not yet saved can simply be discarded. */
+  document.addEventListener('click', (event) => {
+    const button = (event.target as Element).closest?.('[data-remove-row]');
+    button?.closest('tr')?.remove();
+  });
+
+  /* Copying over a week that already has shifts asks first. */
+  for (const form of document.querySelectorAll<HTMLFormElement>('form[data-confirm]')) {
+    form.addEventListener('submit', (event) => {
+      if (!window.confirm(form.dataset.confirm ?? '')) event.preventDefault();
+    });
+  }
+</script>
