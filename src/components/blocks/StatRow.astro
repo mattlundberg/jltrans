@@ -1,9 +1,11 @@
 ---
 import Container from '../primitives/Container.astro';
+import Icon from '../primitives/Icon.astro';
 import { proofPoints } from '../../data/site';
 
 /**
- * Verifiable proof points.
+ * Verifiable proof points: icon, headline figure, label and one line of detail,
+ * centred in columns with thin dividers between them.
  *
  * This replaces the old site's "Skills We Use" progress bars — Client
  * Satisfaction 100%, Freight Handling 99%, Safety Protocols 98%, Integrity 100%.
@@ -14,16 +16,22 @@ import { proofPoints } from '../../data/site';
 
 <section class="border-y border-(--border-subtle) bg-(--surface-sunken)">
   <Container class="py-12 sm:py-16">
-    <dl class="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
+    <dl
+      class="grid gap-y-12 sm:grid-cols-2 lg:grid-cols-4 lg:divide-x lg:divide-(--border-strong)"
+    >
       {
         proofPoints.map((point) => (
-          <div class="flex flex-col gap-1.5">
-            <dt class="text-3xl font-extrabold tracking-tight text-(--accent) sm:text-4xl">
+          <div class="flex flex-col items-center gap-2 px-4 text-center lg:px-3">
+            <Icon name={point.icon} size={56} class="mb-2 text-(--accent)" />
+            <dt class="text-4xl font-extrabold tracking-tight text-(--accent) sm:text-5xl">
               {point.figure}
             </dt>
-            <dd class="flex flex-col gap-1">
-              <span class="font-semibold text-(--text-strong)">{point.label}</span>
-              <span class="text-sm leading-relaxed text-(--text-muted)">{point.detail}</span>
+            <dd class="flex w-full flex-col gap-1.5">
+              {/* Steps down at lg so "Transportation Operations" fits one line in four columns. */}
+              <span class="text-lg font-bold text-(--text-strong) lg:text-base xl:text-lg">{point.label}</span>
+              <span class="mx-auto max-w-[17rem] text-sm leading-relaxed text-(--text-muted) sm:text-base">
+                {point.detail}
+              </span>
             </dd>
           </div>
         ))

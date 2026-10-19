@@ -138,23 +138,27 @@ export const memberships = [
  */
 export const proofPoints = [
   {
+    icon: 'shield',
     figure: '<0.1%',
-    label: 'Freight claims',
-    detail: 'Over the last three years.',
+    label: 'Freight Claims',
+    detail: 'Over the past three years.',
   },
   {
-    figure: '24/7',
-    label: 'Dispatch and operations',
-    detail: 'Seven days a week, every week of the year.',
+    icon: 'calendar-clock',
+    figure: 'Flexible',
+    label: 'Transportation Operations',
+    detail: 'Scheduled to meet our customers’ needs, including evenings and weekends.',
   },
   {
+    icon: 'stars',
     figure: `${yearsInBusiness()}`,
-    label: 'Years in operation',
+    label: 'Years in Operation',
     detail: `Incorporated in January ${FOUNDED}.`,
   },
   {
+    icon: 'wrench',
     figure: 'In-house',
-    label: 'Shop and mechanics',
+    label: 'Maintenance',
     detail: 'Safety and maintenance handled by our own team.',
   },
 ] as const;
