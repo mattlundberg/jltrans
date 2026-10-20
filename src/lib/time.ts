@@ -28,6 +28,9 @@ export function formatTime(time: string): string {
   return `${h % 12 || 12}:${m}${h < 12 ? 'a' : 'p'}`;
 }
 
+/** "7:00a – 3:30p", or "Starts 7:00a" when the shift has no set end time. */
 export function formatShift(shift: { start: string; end: string }): string {
-  return `${formatTime(shift.start)} – ${formatTime(shift.end)}`;
+  return shift.end
+    ? `${formatTime(shift.start)} – ${formatTime(shift.end)}`
+    : `Starts ${formatTime(shift.start)}`;
 }

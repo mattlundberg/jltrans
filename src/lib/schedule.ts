@@ -8,7 +8,8 @@
  * nearest today. When the calendar rolls over, what was next week becomes this
  * week on its own — nobody has to promote it.
  *
- * A shift is a start and end time on the same day. Blank means not working.
+ * A shift is a start time and an optional end time on the same day. Blank
+ * means not working.
  *
  * STORAGE
  * -------
@@ -57,6 +58,10 @@ export interface Employee {
 }
 
 /** Same-day shift, `HH:MM` 24-hour. `start` is always earlier than `end`. */
+/**
+ * Same-day shift, `HH:MM` 24-hour. `end` is optional — an empty string when
+ * only the start is known — and when present is always later than `start`.
+ */
 export interface Shift {
   start: string;
   end: string;
@@ -366,7 +371,7 @@ export function applyWeekEdit(schedule: Schedule, edit: WeekEdit): Omit<Schedule
         Object.fromEntries(
           DAYS.map((day) => {
             const { start, end } = row.times[day];
-            return [day, start && end ? { start, end } : null];
+            return [day, start ? { start, end } : null];
           })
         ) as WeekShifts,
       ])
@@ -413,9 +418,10 @@ function rowId(form: FormData, key: string): string {
 }
 
 /**
- * Checks one day's pair of times. Both blank is a day off; otherwise both must
- * be valid and the start must come before the end. Overnight shifts are not
- * supported: a shift belongs to a single day.
+ * Checks one day's times. Both blank is a day off. Otherwise a start time is
+ * required and the end time is optional; when an end is given it must come
+ * after the start. Overnight shifts are not supported: a shift belongs to a
+ * single day.
  */
 function checkShift(rawStart: string, rawEnd: string): { start: string; end: string; error: string | null } {
   if (!rawStart && !rawEnd) return { start: '', end: '', error: null };
@@ -426,7 +432,7 @@ function checkShift(rawStart: string, rawEnd: string): { start: string; end: str
   if (rawStart && !start) return { start: rawStart, end: rawEnd, error: 'Start time is not a valid time.' };
   if (rawEnd && !end) return { start: rawStart, end: rawEnd, error: 'End time is not a valid time.' };
   if (!start) return { start: '', end: end as string, error: 'Enter a start time, or clear the end time.' };
-  if (!end) return { start, end: '', error: 'Enter an end time, or clear the start time.' };
+  if (!end) return { start, end: '', error: null };
   if (toMinutes(start) >= toMinutes(end)) return { start, end, error: 'Start time must be earlier than end time.' };
   return { start, end, error: null };
 }

@@ -2,7 +2,8 @@
 /**
  * The one "Set hours" dialog shared by every roster row in the edit form.
  *
- * Pick a start and end time, tick the days they apply to, and apply — or mark
+ * Pick a start time (and optionally an end time), tick the days they apply to,
+ * and apply — or mark
  * the ticked days off. Behaviour lives in the page script; this is markup only.
  *
  * Its controls deliberately have no `name`: the dialog sits inside the edit
@@ -56,7 +57,7 @@ const chip =
           <input type="time" data-dialog-start class:list={[inputClass, 'text-base']} />
         </label>
         <label class="flex flex-col gap-1.5 text-sm font-medium text-(--text-body)">
-          End time
+          <span>End time <span class="font-normal text-(--text-muted)">(optional)</span></span>
           <input type="time" data-dialog-end class:list={[inputClass, 'text-base']} />
         </label>
       </div>

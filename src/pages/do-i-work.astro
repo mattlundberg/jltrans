@@ -417,7 +417,7 @@ const sectionTitle = 'text-xl font-bold text-(--text-strong) sm:text-2xl';
                   <h3 class="text-lg font-bold text-(--text-strong)">Shifts</h3>
                   <p class="mt-1 text-sm text-(--text-muted)">
                     Choose <strong class="font-semibold text-(--text-body)">Set hours</strong> on a row,
-                    or click any day, to pick a start and end time and the days it applies to. Names
+                    or click any day, to pick a start time (end time optional) and the days it applies to. Names
                     and positions are shared by both weeks.
                   </p>
                 </div>
@@ -819,7 +819,8 @@ const sectionTitle = 'text-xl font-bold text-(--text-strong) sm:text-2xl';
       start: cell.querySelector<HTMLInputElement>('[data-start]')!.value,
       end: cell.querySelector<HTMLInputElement>('[data-end]')!.value,
     });
-    const isShift = (t: { start: string; end: string }) => Boolean(t.start && t.end);
+    // A start time makes a shift; the end time is optional.
+    const isShift = (t: { start: string; end: string }) => Boolean(t.start);
 
     const showError = (message: string) => {
       errorEl.textContent = message;
@@ -831,10 +832,10 @@ const sectionTitle = 'text-xl font-bold text-(--text-strong) sm:text-2xl';
       cell.querySelector<HTMLInputElement>('[data-end]')!.value = end;
 
       const button = cell.querySelector<HTMLButtonElement>('[data-edit-day]')!;
-      const text = start && end ? formatShift({ start, end }) : 'Off';
+      const text = start ? formatShift({ start, end }) : 'Off';
       const who = row?.querySelector<HTMLInputElement>('[data-emp-name]')?.value || 'New employee';
       button.textContent = text;
-      button.dataset.set = String(Boolean(start && end));
+      button.dataset.set = String(Boolean(start));
       button.removeAttribute('aria-invalid');
       button.setAttribute('aria-label', `${who}, ${cell.dataset.dayCell}: ${text}. Change hours`);
       cell.querySelector('[data-cell-error]')?.remove();
@@ -846,7 +847,7 @@ const sectionTitle = 'text-xl font-bold text-(--text-strong) sm:text-2xl';
       const seen = new Map<string, { start: string; end: string }>();
       document.querySelectorAll<HTMLElement>('[data-day-cell]').forEach((cell) => {
         const t = readCell(cell);
-        if (isShift(t) && t.start < t.end) seen.set(`${t.start}-${t.end}`, t);
+        if (isShift(t) && (!t.end || t.start < t.end)) seen.set(`${t.start}-${t.end}`, t);
       });
 
       const presets = [...seen.values()].sort((a, b) => a.start.localeCompare(b.start)).slice(0, 8);
@@ -925,9 +926,9 @@ const sectionTitle = 'text-xl font-bold text-(--text-strong) sm:text-2xl';
       const end = endInput.value;
       const days = selectedDays();
 
-      if (!start || !end) return showError('Choose both a start time and an end time.');
-      // `HH:MM` strings compare correctly as text.
-      if (start >= end) return showError('The start time must be earlier than the end time.');
+      if (!start) return showError('Choose a start time.');
+      // The end time is optional. `HH:MM` strings compare correctly as text.
+      if (end && start >= end) return showError('The start time must be earlier than the end time.');
       if (!days.length) return showError('Choose at least one day.');
 
       days.forEach((d) => writeCell(cellFor(row!, d), start, end));
