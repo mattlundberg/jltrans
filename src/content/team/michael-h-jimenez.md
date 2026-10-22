@@ -1,5 +1,5 @@
 ---
-name: Michael H. Jimenez
+name: Micheal H. Jimenez
 role: President and Founder
 location: Phoenix
 order: 1

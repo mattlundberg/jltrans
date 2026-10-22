@@ -1,5 +1,5 @@
 ---
-name: Michael E. Jimenez
+name: Micheal E. Jimenez
 role: Vice President
 location: Phoenix
 order: 3
