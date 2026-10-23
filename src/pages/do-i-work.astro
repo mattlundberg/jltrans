@@ -3,10 +3,21 @@ import PageLayout from '../layouts/PageLayout.astro';
 import Container from '../components/primitives/Container.astro';
 import Button from '../components/primitives/Button.astro';
 import Icon from '../components/primitives/Icon.astro';
-import EmployeeEditRow from '../components/schedule/EmployeeEditRow.astro';
+import DataTable from '../components/primitives/DataTable.astro';
+import EmptyState from '../components/primitives/EmptyState.astro';
+import Notice from '../components/primitives/Notice.astro';
+import Pill from '../components/primitives/Pill.astro';
+import Tabs from '../components/primitives/Tabs.astro';
+import Th from '../components/primitives/Th.astro';
+import DayHeader from '../components/schedule/DayHeader.astro';
 import DayOffEditRow from '../components/schedule/DayOffEditRow.astro';
+import EditTableSection from '../components/schedule/EditTableSection.astro';
+import EmployeeEditRow from '../components/schedule/EmployeeEditRow.astro';
+import LocationEditRow from '../components/schedule/LocationEditRow.astro';
+import RosterFilters from '../components/schedule/RosterFilters.astro';
+import ScheduleTable from '../components/schedule/ScheduleTable.astro';
 import ShiftDialog from '../components/schedule/ShiftDialog.astro';
-import { inputClass } from '../components/schedule/classes';
+import { inputClass, sectionTitle } from '../components/schedule/classes';
 import {
   sessionCookie,
   createSessionToken,
@@ -37,11 +48,11 @@ import {
   formatShort,
   formatLong,
   formatTimestamp,
-  formatShift,
+  byName,
   type Schedule,
   type DayOff,
   type WeekEdit,
-  type ShiftError,
+  type FormError,
 } from '../lib/schedule';
 
 /**
@@ -105,7 +116,7 @@ let role: Role | null = null;
 /** Set when a save is refused, so the editor's input is shown again rather than lost. */
 let draft: WeekEdit | null = null;
 let draftBasedOn: string | null = null;
-let draftErrors: ShiftError[] = [];
+let draftErrors: FormError[] = [];
 let saveError: string | null = null;
 
 if (configured) {
@@ -253,9 +264,27 @@ const notice = editing
 const edit = draft ?? weekEditFrom(schedule, selectedWeek);
 const basedOn = draft ? draftBasedOn : schedule.updatedAt;
 
-/** Errors keyed `row-day` (or `row-name`) for display beside the field. */
-const errorAt = new Map(draftErrors.map((e) => [`${e.row}-${e.day ?? 'name'}`, e.message]));
-const rowLabel = (row: number) => edit.employees[row]?.name || `Row ${row + 1}`;
+/** Employee errors keyed `row-field`, and location errors keyed by row, for display beside the field. */
+const errorAt = new Map<string, string>();
+const locationErrorAt = new Map<number, string>();
+for (const e of draftErrors) {
+  if (e.kind === 'employee') errorAt.set(`${e.row}-${e.field}`, e.message);
+  else locationErrorAt.set(e.row, e.message);
+}
+
+/** Where each error in the summary links to, and what it is called there. */
+const errorLink = (e: FormError) =>
+  e.kind === 'location'
+    ? { href: `#loc-${e.row}-name`, label: `Location: ${edit.locations[e.row]?.name || `row ${e.row + 1}`}` }
+    : {
+        href: `#emp-${e.row}-${e.field === 'name' || e.field === 'location' ? e.field : `${e.field}-start`}`,
+        label: [
+          edit.employees[e.row]?.name || `Row ${e.row + 1}`,
+          e.field !== 'name' && e.field !== 'location' && `${DAY_LABELS[e.field]} ${formatShort(dates[e.field])}`,
+        ]
+          .filter(Boolean)
+          .join(', '),
+      };
 
 const today = todayIso();
 const dates = weekDates(selectedWeek);
@@ -269,6 +298,30 @@ const dayOffDates = new Set(daysOffByDate.keys());
 const upcomingDaysOff = schedule.daysOff.filter((d) => d.date >= today);
 const currentWeekDates = Object.values(weekDates(CURRENT_WEEK));
 const nextWeekDates = Object.values(weekDates(NEXT_WEEK));
+
+/**
+ * The staff view: one table per location, in the editors' order, each sorted
+ * by name. Anyone not placed in a current location — carried over from before
+ * locations existed — gets a last table, so nobody quietly disappears.
+ */
+const roster = [...schedule.employees].sort(byName);
+const locationIds = new Set(schedule.locations.map((loc) => loc.id));
+const locationGroups = [
+  ...schedule.locations.map((loc) => ({
+    id: loc.id,
+    name: loc.name,
+    employees: roster.filter((emp) => emp.location === loc.id),
+  })),
+  { id: '', name: 'No location yet', employees: roster.filter((emp) => !locationIds.has(emp.location)) },
+].filter((group) => group.employees.length > 0);
+const headcount = (locationId: string) => edit.employees.filter((emp) => emp.location === locationId).length;
+
+/** Distinct positions for the filter, ignoring case. */
+const roles = [
+  ...new Map(
+    edit.employees.map((emp) => emp.role.trim()).filter(Boolean).map((role) => [role.toLocaleLowerCase('en'), role])
+  ).values(),
+].sort((a, b) => a.localeCompare(b, 'en', { sensitivity: 'base' }));
 
 /**
  * Both copy directions, offered whenever there is a roster. Copying over a week
@@ -295,10 +348,6 @@ const copyActions = [
     confirm: currentHasShifts ? copyConfirm(nextHasShifts, 'next week', 'this week') : '',
   },
 ];
-
-const thClass =
-  'px-3 py-2.5 text-left text-xs font-semibold tracking-wide whitespace-nowrap uppercase text-(--text-muted)';
-const sectionTitle = 'text-xl font-bold text-(--text-strong) sm:text-2xl';
 ---
 
 <PageLayout
@@ -311,15 +360,14 @@ const sectionTitle = 'text-xl font-bold text-(--text-strong) sm:text-2xl';
   <Container width={authorised ? (editing ? 'wide' : 'content') : 'prose'} class="py-section">
     {
       !configured ? (
-        <div class="rounded-(--radius-card) border border-(--border-strong) bg-(--surface-sunken) p-6 sm:p-8">
-          <h2 class="font-bold text-(--text-strong)">Not configured</h2>
+        <Notice tone="panel" title="Not configured">
           <p class="mt-2 text-sm leading-relaxed text-(--text-body)">
             This page requires the <code>DO_I_WORK_PASSWORD</code> and <code>AUTH_SECRET</code>
             {' '}environment variables (plus <code>DO_I_WORK_EDITOR_PASSWORD</code> to allow
             {' '}editing). Locally, copy <code>.env.example</code> to <code>.env</code>. In
             {' '}production, set them in the Netlify site's environment variables.
           </p>
-        </div>
+        </Notice>
       ) : authorised ? (
         <div class="flex flex-col gap-10">
           {/*
@@ -332,10 +380,10 @@ const sectionTitle = 'text-xl font-bold text-(--text-strong) sm:text-2xl';
           {/* --- Session bar ------------------------------------------------ */}
           <div class="flex flex-col gap-4 border-b border-(--border-subtle) pb-6 sm:flex-row sm:items-center sm:justify-between">
             <div class="flex flex-wrap items-center gap-3 text-sm text-(--text-muted)">
-              <span class="inline-flex items-center gap-1.5 rounded-full bg-(--accent-subtle-bg) px-3 py-1 text-xs font-semibold tracking-wide uppercase text-(--accent-subtle-text)">
+              <Pill size="md">
                 <Icon name={isEditor ? 'shield' : 'lock'} size={14} />
                 {isEditor ? 'Editor' : 'Staff'}
-              </span>
+              </Pill>
               {schedule.updatedAt ? (
                 <span>Last updated {formatTimestamp(schedule.updatedAt)}</span>
               ) : (
@@ -349,42 +397,36 @@ const sectionTitle = 'text-xl font-bold text-(--text-strong) sm:text-2xl';
           </div>
 
           {notice && (
-            <div role="status" class="flex items-start gap-3 rounded-(--radius-card) border-l-4 border-(--accent) bg-(--accent-subtle-bg) p-5">
-              <Icon name="check" size={20} class="mt-0.5 text-(--accent)" />
+            <Notice tone="success" role="status">
               <p class="text-sm font-medium text-(--text-strong)">{notice}</p>
-            </div>
+            </Notice>
           )}
 
           {saveError && (
-            <div role="alert" class="rounded-(--radius-card) border-l-4 border-(--accent) bg-(--accent-subtle-bg) p-5">
+            <Notice tone="alert" role="alert">
               <p class="text-sm font-medium text-(--text-strong)">{saveError}</p>
               {draftErrors.length > 0 && (
                 <ul class="mt-2 list-disc space-y-1 pl-5 text-sm text-(--text-body)">
-                  {draftErrors.map((e) => (
-                    <li>
-                      <a
-                        href={`#${e.day ? `emp-${e.row}-${e.day}-start` : `emp-${e.row}-name`}`}
-                        class="underline-offset-4 hover:underline"
-                      >
-                        {rowLabel(e.row)}
-                        {e.day && `, ${DAY_LABELS[e.day]} ${formatShort(dates[e.day])}`}
-                      </a>
-                      : {e.message}
-                    </li>
-                  ))}
+                  {draftErrors.map((e) => {
+                    const link = errorLink(e);
+                    return (
+                      <li>
+                        <a href={link.href} class="underline-offset-4 hover:underline">{link.label}</a>: {e.message}
+                      </li>
+                    );
+                  })}
                 </ul>
               )}
-            </div>
+            </Notice>
           )}
 
           {storageError ? (
-            <div role="alert" class="rounded-(--radius-card) border border-(--border-strong) bg-(--surface-sunken) p-6 sm:p-8">
-              <h2 class="font-bold text-(--text-strong)">Schedule unavailable</h2>
+            <Notice tone="panel" role="alert" title="Schedule unavailable">
               <p class="mt-2 text-sm leading-relaxed text-(--text-body)">
                 The schedule could not be loaded right now. Please refresh in a minute, or call
                 dispatch to confirm your shift.
               </p>
-            </div>
+            </Notice>
           ) : editing ? (
             /* ================================================================
                EDIT MODE — one form for one week. "Add" buttons clone a
@@ -395,9 +437,6 @@ const sectionTitle = 'text-xl font-bold text-(--text-strong) sm:text-2xl';
               <input type="hidden" name="intent" value="save" />
               <input type="hidden" name="weekOf" value={selectedWeek} />
               <input type="hidden" name="basedOn" value={basedOn ?? ''} />
-              {/* The next free row index. "Add" increments it. */}
-              <input type="hidden" name="emp-count" value={edit.employees.length} />
-              <input type="hidden" name="off-count" value={edit.daysOff.length} />
 
               <section class="flex flex-col gap-5">
                 <div>
@@ -412,107 +451,92 @@ const sectionTitle = 'text-xl font-bold text-(--text-strong) sm:text-2xl';
                 </div>
               </section>
 
-              <section class="flex flex-col gap-4">
-                <div>
-                  <h3 class="text-lg font-bold text-(--text-strong)">Shifts</h3>
-                  <p class="mt-1 text-sm text-(--text-muted)">
-                    Choose <strong class="font-semibold text-(--text-body)">Set hours</strong> on a row,
-                    or click any day, to pick a start time (end time optional) and the days it applies to. Names
-                    and positions are shared by both weeks.
-                  </p>
-                </div>
+              <EditTableSection
+                kind="emp"
+                title="Shifts"
+                count={edit.employees.length}
+                columns={DAYS.length + 2}
+                tableClass="min-w-[66rem]"
+                emptyText="No one on the schedule yet. Use Add New Employee below."
+                addLabel="Add New Employee"
+                noMatchesText="No one matches these filters."
+              >
+                <Fragment slot="description">
+                  Choose <strong class="font-semibold text-(--text-body)">Set hours</strong> on a row,
+                  or click any day, to pick a start time (end time optional) and the days it applies to.
+                  Every employee needs a location. Names, positions and locations are shared by both weeks.
+                </Fragment>
+                <RosterFilters slot="toolbar" locations={edit.locations} roles={roles} sortByLocation />
+                <Fragment slot="head">
+                  <Th>Employee</Th>
+                  {DAYS.map((day) => <DayHeader day={day} date={dates[day]} off={daysOffByDate.get(dates[day])} compact />)}
+                  <Th>Remove</Th>
+                </Fragment>
+                {edit.employees.map((emp, i) => (
+                  <EmployeeEditRow
+                    index={i}
+                    emp={emp}
+                    locations={edit.locations}
+                    dates={dates}
+                    dayOffDates={dayOffDates}
+                    errorAt={errorAt}
+                  />
+                ))}
+                <EmployeeEditRow slot="template" locations={edit.locations} dates={dates} dayOffDates={dayOffDates} />
+                <ShiftDialog slot="after" dates={dates} dayOffDates={dayOffDates} />
+                <Fragment slot="add-note">
+                  Removing someone takes them off both weeks. Everyone with the staff password can
+                  see this page, so keep it to names, positions and shifts.
+                </Fragment>
+              </EditTableSection>
 
-                <div class="scroll-x rounded-(--radius-card) border border-(--border-subtle) bg-(--surface-raised)">
-                  <table class="w-full min-w-[66rem] border-collapse text-sm">
-                    <thead class="border-b border-(--border-subtle) bg-(--surface-sunken)">
-                      <tr>
-                        <th scope="col" class={thClass}>Employee</th>
-                        {DAYS.map((day) => {
-                          const off = daysOffByDate.get(dates[day]);
-                          return (
-                            <th scope="col" class:list={['px-2 py-2.5 text-left align-bottom whitespace-nowrap', off && 'bg-(--accent-subtle-bg)']}>
-                              <span class="block text-xs font-semibold tracking-wide uppercase text-(--text-muted)">{DAY_LABELS[day]}</span>
-                              <span class="block text-sm font-semibold text-(--text-strong)">{formatShort(dates[day])}</span>
-                              {off && <span class="block text-xs font-semibold text-(--accent-subtle-text)" title={off.name}>Day off</span>}
-                            </th>
-                          );
-                        })}
-                        <th scope="col" class={thClass}>Remove</th>
-                      </tr>
-                    </thead>
-                    <tbody id="emp-rows">
-                      {edit.employees.map((emp, i) => (
-                        <EmployeeEditRow index={i} emp={emp} dates={dates} dayOffDates={dayOffDates} errorAt={errorAt} />
-                      ))}
-                      {edit.employees.length === 0 && (
-                        <tr data-empty>
-                          <td colspan={DAYS.length + 2} class="px-4 py-6 text-center text-sm text-(--text-muted)">
-                            No one on the schedule yet. Use Add New Employee below.
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-                <template id="emp-row-template">
-                  <EmployeeEditRow dates={dates} dayOffDates={dayOffDates} />
-                </template>
-                <ShiftDialog dates={dates} dayOffDates={dayOffDates} />
-                <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
-                  <Button type="button" variant="secondary" data-add-row="emp">
-                    <Icon name="plus" size={16} />
-                    Add New Employee
-                  </Button>
-                  <p class="text-xs text-(--text-muted)">
-                    Removing someone takes them off both weeks. Everyone with the staff password can
-                    see this page, so keep it to names, positions and shifts.
-                  </p>
-                </div>
-              </section>
+              <EditTableSection
+                kind="loc"
+                title="Locations"
+                count={edit.locations.length}
+                columns={3}
+                tableClass="min-w-[32rem]"
+                emptyText="No locations yet. Use Add Location below."
+                addLabel="Add Location"
+              >
+                <Fragment slot="description">
+                  Staff see one table per location. A location can be removed once nobody is in it.
+                </Fragment>
+                <Fragment slot="head">
+                  <Th>Name</Th>
+                  <Th>Staff</Th>
+                  <Th>Remove</Th>
+                </Fragment>
+                {edit.locations.map((location, i) => (
+                  <LocationEditRow index={i} location={location} headcount={headcount(location.id)} error={locationErrorAt.get(i)} />
+                ))}
+                <LocationEditRow slot="template" />
+              </EditTableSection>
 
-              <section class="flex flex-col gap-4">
-                <div>
-                  <h3 class="text-lg font-bold text-(--text-strong)">Company days off</h3>
-                  <p class="mt-1 text-sm text-(--text-muted)">
-                    Days that apply to everyone, in any week. Staff only see upcoming ones; past
-                    dates stay here until you remove them.
-                  </p>
-                </div>
-
-                <div class="scroll-x rounded-(--radius-card) border border-(--border-subtle) bg-(--surface-raised)">
-                  <table class="w-full min-w-[44rem] border-collapse text-sm">
-                    <thead class="border-b border-(--border-subtle) bg-(--surface-sunken)">
-                      <tr>
-                        <th scope="col" class={thClass}>Date</th>
-                        <th scope="col" class={thClass}>Name</th>
-                        <th scope="col" class={thClass}>Note</th>
-                        <th scope="col" class={thClass}>Remove</th>
-                      </tr>
-                    </thead>
-                    <tbody id="off-rows">
-                      {edit.daysOff.map((off, i) => (
-                        <DayOffEditRow index={i} off={off} today={today} />
-                      ))}
-                      {edit.daysOff.length === 0 && (
-                        <tr data-empty>
-                          <td colspan="4" class="px-4 py-6 text-center text-sm text-(--text-muted)">
-                            No company days off yet. Use Add New Company Holiday below.
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-                <template id="off-row-template">
-                  <DayOffEditRow today={today} />
-                </template>
-                <div>
-                  <Button type="button" variant="secondary" data-add-row="off">
-                    <Icon name="plus" size={16} />
-                    Add New Company Holiday
-                  </Button>
-                </div>
-              </section>
+              <EditTableSection
+                kind="off"
+                title="Company days off"
+                count={edit.daysOff.length}
+                columns={4}
+                tableClass="min-w-[44rem]"
+                emptyText="No company days off yet. Use Add New Company Holiday below."
+                addLabel="Add New Company Holiday"
+              >
+                <Fragment slot="description">
+                  Days that apply to everyone, in any week. Staff only see upcoming ones; past
+                  dates stay here until you remove them.
+                </Fragment>
+                <Fragment slot="head">
+                  <Th>Date</Th>
+                  <Th>Name</Th>
+                  <Th>Note</Th>
+                  <Th>Remove</Th>
+                </Fragment>
+                {edit.daysOff.map((off, i) => (
+                  <DayOffEditRow index={i} off={off} today={today} />
+                ))}
+                <DayOffEditRow slot="template" today={today} />
+              </EditTableSection>
 
               <div class="sticky bottom-0 z-20 -mx-5 flex flex-wrap items-center gap-3 border-t border-(--border-subtle) bg-(--surface-page)/90 px-5 py-4 backdrop-blur-md sm:-mx-8 sm:px-8">
                 <Button type="submit">
@@ -531,23 +555,15 @@ const sectionTitle = 'text-xl font-bold text-(--text-strong) sm:text-2xl';
                 <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
                   <div class="flex flex-col gap-3">
                     <h2 class={sectionTitle}>Weekly schedule</h2>
-                    <nav aria-label="Choose week" class="inline-flex w-fit gap-1 rounded-full border border-(--border-subtle) bg-(--surface-sunken) p-1">
-                      {[CURRENT_WEEK, NEXT_WEEK].map((w) => (
-                        <a
-                          href={weekUrl(w)}
-                          aria-current={w === selectedWeek ? 'page' : undefined}
-                          class:list={[
-                            'rounded-full px-4 py-1.5 text-sm font-semibold whitespace-nowrap transition-colors',
-                            w === selectedWeek
-                              ? 'bg-(--surface-raised) text-(--text-strong) shadow-(--shadow-card)'
-                              : 'text-(--text-muted) hover:text-(--text-strong)',
-                          ]}
-                        >
-                          {weekLabel(w)}
-                          <span class="ml-1 font-normal text-(--text-muted)">{formatShort(w)}</span>
-                        </a>
-                      ))}
-                    </nav>
+                    <Tabs
+                      label="Choose week"
+                      tabs={[CURRENT_WEEK, NEXT_WEEK].map((w) => ({
+                        href: weekUrl(w),
+                        label: weekLabel(w),
+                        detail: formatShort(w),
+                        current: w === selectedWeek,
+                      }))}
+                    />
                     <p class="text-sm font-medium text-(--text-body)">
                       {formatShort(dates.mon)} – {formatShort(dates.sun)}
                     </p>
@@ -582,14 +598,13 @@ const sectionTitle = 'text-xl font-bold text-(--text-strong) sm:text-2xl';
                 )}
 
                 {week.notes && (
-                  <div class="rounded-(--radius-card) border-l-4 border-(--accent) bg-(--surface-sunken) p-5">
-                    <p class="text-xs font-semibold tracking-wide uppercase text-(--text-muted)">Notes</p>
+                  <Notice tone="note" title="Notes">
                     <p class="mt-1.5 text-sm leading-relaxed whitespace-pre-line text-(--text-body)">{week.notes}</p>
-                  </div>
+                  </Notice>
                 )}
 
                 {/*
-                  Staff see the table only once shifts are posted: a roster of
+                  Staff see the tables only once shifts are posted: a roster of
                   people all marked "Off" would read as a real answer. Editors
                   always see the roster, with a note while the week is empty.
                 */}
@@ -602,75 +617,30 @@ const sectionTitle = 'text-xl font-bold text-(--text-strong) sm:text-2xl';
                 )}
 
                 {schedule.employees.length === 0 || (!hasShifts && !isEditor) ? (
-                  <div class="rounded-(--radius-card) border border-dashed border-(--border-strong) bg-(--surface-sunken) p-8 text-center">
-                    <Icon name="clock" size={24} class="mx-auto text-(--text-muted)" />
-                    <p class="mt-3 font-semibold text-(--text-strong)">
-                      {weekLabel(selectedWeek)}&rsquo;s schedule hasn&rsquo;t been posted yet
-                    </p>
-                    <p class="mt-1 text-sm text-(--text-muted)">
-                      {isEditor
-                        ? 'Edit this week to add employees and their shifts.'
-                        : 'Check back soon, or call dispatch to confirm your shift.'}
-                    </p>
-                  </div>
+                  <EmptyState icon="clock" title={`${weekLabel(selectedWeek)}’s schedule hasn’t been posted yet`}>
+                    {isEditor
+                      ? 'Edit this week to add employees and their shifts.'
+                      : 'Check back soon, or call dispatch to confirm your shift.'}
+                  </EmptyState>
                 ) : (
-                  <div class="scroll-x rounded-(--radius-card) border border-(--border-subtle) bg-(--surface-raised) shadow-(--shadow-card)">
-                    <table class="w-full min-w-[60rem] border-collapse text-sm">
-                      <caption class="sr-only">Staff schedule for the week of {formatLong(selectedWeek)}</caption>
-                      <thead class="border-b border-(--border-subtle) bg-(--surface-sunken)">
-                        <tr>
-                          <th scope="col" class:list={[thClass, 'sticky left-0 z-10 bg-(--surface-sunken)']}>Employee</th>
-                          {DAYS.map((day) => {
-                            const date = dates[day];
-                            const off = daysOffByDate.get(date);
-                            return (
-                              <th
-                                scope="col"
-                                class:list={['px-3 py-2.5 text-left align-bottom whitespace-nowrap', off && 'bg-(--accent-subtle-bg)']}
-                              >
-                                <span class:list={['block text-xs font-semibold tracking-wide uppercase', date === today ? 'text-(--accent)' : 'text-(--text-muted)']}>
-                                  {DAY_LABELS[day]}
-                                  {date === today && <span class="ml-1 normal-case tracking-normal">· Today</span>}
-                                </span>
-                                <span class="block text-sm font-semibold text-(--text-strong)">{formatShort(date)}</span>
-                                {off && (
-                                  <span class="mt-0.5 block text-xs font-semibold text-(--accent-subtle-text)" title={off.name}>
-                                    Company day off
-                                  </span>
-                                )}
-                              </th>
-                            );
-                          })}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {schedule.employees.map((emp) => {
-                          const shifts = week.shifts[emp.id];
-                          return (
-                            <tr class="border-b border-(--border-subtle) last:border-b-0 hover:bg-(--surface-sunken)/60">
-                              <th scope="row" class="sticky left-0 z-10 min-w-40 bg-(--surface-raised) px-3 py-3 text-left font-normal">
-                                <span class="block font-semibold text-(--text-strong)">{emp.name}</span>
-                                {emp.role && <span class="block text-xs text-(--text-muted)">{emp.role}</span>}
-                              </th>
-                              {DAYS.map((day) => {
-                                const shift = shifts?.[day];
-                                return (
-                                  <td class:list={['px-3 py-3 whitespace-nowrap tabular-nums', daysOffByDate.has(dates[day]) && 'bg-(--accent-subtle-bg)/60']}>
-                                    {shift ? (
-                                      <span class="font-medium text-(--text-strong)">{formatShift(shift)}</span>
-                                    ) : hasShifts ? (
-                                      <span class="text-(--text-muted)">Off</span>
-                                    ) : (
-                                      <span class="text-(--text-muted)" aria-label="Not entered">—</span>
-                                    )}
-                                  </td>
-                                );
-                              })}
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
+                  <div class="flex flex-col gap-8" data-location-tables>
+                    <RosterFilters
+                      locations={schedule.locations.filter((loc) => locationGroups.some((group) => group.id === loc.id))}
+                      roles={roles}
+                    />
+                    {locationGroups.map((group) => (
+                      <ScheduleTable
+                        locationId={group.id}
+                        title={group.name}
+                        employees={group.employees}
+                        shifts={week.shifts}
+                        weekOf={selectedWeek}
+                        dates={dates}
+                        today={today}
+                        daysOffByDate={daysOffByDate}
+                        weekPosted={hasShifts}
+                      />
+                    ))}
                   </div>
                 )}
               </section>
@@ -681,36 +651,29 @@ const sectionTitle = 'text-xl font-bold text-(--text-strong) sm:text-2xl';
                 {upcomingDaysOff.length === 0 ? (
                   <p class="text-sm text-(--text-muted)">No upcoming company days off.</p>
                 ) : (
-                  <div class="scroll-x rounded-(--radius-card) border border-(--border-subtle) bg-(--surface-raised) shadow-(--shadow-card)">
-                    <table class="w-full min-w-[32rem] border-collapse text-sm">
-                      <caption class="sr-only">Upcoming company days off</caption>
-                      <thead class="border-b border-(--border-subtle) bg-(--surface-sunken)">
-                        <tr>
-                          <th scope="col" class={thClass}>Date</th>
-                          <th scope="col" class={thClass}>Day off</th>
-                          <th scope="col" class={thClass}>Note</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {upcomingDaysOff.map((off) => (
-                          <tr class="border-b border-(--border-subtle) last:border-b-0">
-                            <td class="px-3 py-3 whitespace-nowrap">
-                              <span class="font-semibold text-(--text-strong)">{formatLong(off.date)}</span>
-                              {off.date === today ? (
-                                <span class="ml-2 rounded-full bg-(--accent) px-2 py-0.5 text-[0.65rem] font-semibold uppercase text-(--accent-on)">Today</span>
-                              ) : currentWeekDates.includes(off.date) ? (
-                                <span class="ml-2 rounded-full bg-(--accent-subtle-bg) px-2 py-0.5 text-[0.65rem] font-semibold uppercase text-(--accent-subtle-text)">This week</span>
-                              ) : nextWeekDates.includes(off.date) ? (
-                                <span class="ml-2 rounded-full bg-(--surface-sunken) px-2 py-0.5 text-[0.65rem] font-semibold uppercase text-(--text-muted)">Next week</span>
-                              ) : null}
-                            </td>
-                            <td class="px-3 py-3 font-medium text-(--text-strong)">{off.name}</td>
-                            <td class="px-3 py-3 text-(--text-body)">{off.note || <span class="text-(--text-muted)">—</span>}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                  <DataTable tableClass="min-w-[32rem]" caption="Upcoming company days off" raised>
+                    <Fragment slot="head">
+                      <Th>Date</Th>
+                      <Th>Day off</Th>
+                      <Th>Note</Th>
+                    </Fragment>
+                    {upcomingDaysOff.map((off) => (
+                      <tr class="border-b border-(--border-subtle) last:border-b-0">
+                        <td class="px-3 py-3 whitespace-nowrap">
+                          <span class="font-semibold text-(--text-strong)">{formatLong(off.date)}</span>
+                          {off.date === today ? (
+                            <Pill tone="solid" class="ml-2">Today</Pill>
+                          ) : currentWeekDates.includes(off.date) ? (
+                            <Pill class="ml-2">This week</Pill>
+                          ) : nextWeekDates.includes(off.date) ? (
+                            <Pill tone="muted" class="ml-2">Next week</Pill>
+                          ) : null}
+                        </td>
+                        <td class="px-3 py-3 font-medium text-(--text-strong)">{off.name}</td>
+                        <td class="px-3 py-3 text-(--text-body)">{off.note || <span class="text-(--text-muted)">—</span>}</td>
+                      </tr>
+                    ))}
+                  </DataTable>
                 )}
               </section>
 
@@ -775,6 +738,7 @@ const sectionTitle = 'text-xl font-bold text-(--text-strong) sm:text-2xl';
 
 <script>
   import { ROW_INDEX, ROW_NUMBER } from '../components/schedule/classes';
+  import { initListFilter } from '../lib/list-filter';
   import { formatShift } from '../lib/time';
 
   /*
@@ -976,15 +940,96 @@ const sectionTitle = 'text-xl font-bold text-(--text-strong) sm:text-2xl';
       body.querySelector('[data-empty]')?.remove();
       body.insertAdjacentHTML('beforeend', html);
       counter.value = String(index + 1);
-      body.lastElementChild?.querySelector<HTMLInputElement>('input:not([type="hidden"])')?.focus();
+
+      const added = body.lastElementChild as HTMLElement;
+      // A new location gets its id now rather than on save, so people can be
+      // placed in it straight away. The server keeps any well-formed id.
+      const locId = added.querySelector<HTMLInputElement>('[data-loc-id]');
+      if (locId) locId.value = crypto.randomUUID();
+      syncLocationOptions();
+
+      added.querySelector<HTMLInputElement>('input:not([type="hidden"])')?.focus();
     });
   }
 
   /* A row added in this session and not yet saved can simply be discarded. */
   document.addEventListener('click', (event) => {
     const button = (event.target as Element).closest?.('[data-remove-row]');
-    button?.closest('tr')?.remove();
+    if (!button) return;
+    button.closest('tr')?.remove();
+    syncLocationOptions();
   });
+
+  /* ------------------------------------------------------------------------ */
+  /* Locations                                                                 */
+  /* ------------------------------------------------------------------------ */
+
+  /*
+   * Every location <select> on the edit page (each employee's, and the filter)
+   * lists the Locations table as it stands, including unsaved changes. The
+   * blank first option stays; a choice that no longer exists falls back to it.
+   */
+  function syncLocationOptions() {
+    const rows = document.querySelectorAll<HTMLElement>('[data-loc-row]');
+    if (!rows.length) return;
+
+    const locations = [...rows]
+      .map((row) => ({
+        id: row.querySelector<HTMLInputElement>('[data-loc-id]')!.value,
+        name: row.querySelector<HTMLInputElement>('[data-loc-name]')!.value.trim(),
+      }))
+      .filter((loc) => loc.id && loc.name);
+
+    for (const select of document.querySelectorAll<HTMLSelectElement>('select[data-location-select]')) {
+      const value = select.value;
+      const blank = select.options[0]!;
+      select.replaceChildren(blank, ...locations.map((loc) => new Option(loc.name, loc.id)));
+      select.value = locations.some((loc) => loc.id === value) ? value : '';
+    }
+  }
+
+  document.addEventListener('input', (event) => {
+    if ((event.target as Element).matches?.('[data-loc-name]')) syncLocationOptions();
+  });
+
+  /* ------------------------------------------------------------------------ */
+  /* Search, filter and sort                                                   */
+  /* ------------------------------------------------------------------------ */
+
+  const filterBar = document.querySelector<HTMLElement>('[data-list-filter]');
+  const empRows = document.getElementById('emp-rows');
+
+  if (filterBar && empRows) {
+    // Edit form: one table, read from the live inputs so unsaved edits count.
+    initListFilter(filterBar, {
+      groups: [empRows],
+      read: (row) => {
+        const location = row.querySelector<HTMLSelectElement>('[data-emp-location]');
+        return {
+          name: row.querySelector<HTMLInputElement>('[data-emp-name]')?.value ?? '',
+          role: row.querySelector<HTMLInputElement>('[data-emp-role]')?.value ?? '',
+          location: location?.value ?? '',
+          locationName: location?.value ? (location.selectedOptions[0]?.text ?? '') : '',
+        };
+      },
+    });
+  } else if (filterBar) {
+    // Staff view: one table per location; one left with no matches is hidden.
+    const sections = [...document.querySelectorAll<HTMLElement>('[data-location-section]')];
+    initListFilter(filterBar, {
+      groups: sections.map((section) => section.querySelector('tbody')!),
+      read: (row) => ({
+        name: row.dataset.name ?? '',
+        role: row.dataset.role ?? '',
+        location: row.dataset.location ?? '',
+        locationName: row.dataset.locationName ?? '',
+      }),
+      onGroupUpdate: (group, visible) => {
+        const section = group.closest<HTMLElement>('[data-location-section]');
+        if (section) section.hidden = visible === 0;
+      },
+    });
+  }
 
   /* Copying over a week that already has shifts asks first. */
   for (const form of document.querySelectorAll<HTMLFormElement>('form[data-confirm]')) {

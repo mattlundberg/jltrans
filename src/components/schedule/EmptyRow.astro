@@ -1,0 +1,21 @@
+---
+/**
+ * A full-width message row inside a table body.
+ *
+ * `empty` marks the "nothing here yet" row that the Add buttons remove;
+ * `no-matches` marks the row the list filter shows when it hides every row.
+ */
+interface Props {
+  colspan: number;
+  marker: 'empty' | 'no-matches';
+  hidden?: boolean;
+}
+
+const { colspan, marker, hidden = false } = Astro.props;
+---
+
+<tr data-empty={marker === 'empty' ? '' : undefined} data-no-matches={marker === 'no-matches' ? '' : undefined} hidden={hidden}>
+  <td colspan={colspan} class="px-4 py-6 text-center text-sm text-(--text-muted)">
+    <slot />
+  </td>
+</tr>

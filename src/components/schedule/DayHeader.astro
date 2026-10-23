@@ -1,0 +1,38 @@
+---
+/**
+ * One day's column header — weekday, date, and whether it is today or a
+ * company day off. Shared by the staff tables and the edit table.
+ */
+import { DAY_LABELS, formatShort, type Day, type DayOff } from '../../lib/schedule';
+
+interface Props {
+  day: Day;
+  date: string;
+  /** Pass to highlight today's column. */
+  today?: string;
+  off?: DayOff;
+  /** Tighter padding and a shorter day-off label, for the wide edit table. */
+  compact?: boolean;
+}
+
+const { day, date, today, off, compact = false } = Astro.props;
+const isToday = date === today;
+---
+
+<th
+  scope="col"
+  class:list={['py-2.5 text-left align-bottom whitespace-nowrap', compact ? 'px-2' : 'px-3', off && 'bg-(--accent-subtle-bg)']}
+>
+  <span class:list={['block text-xs font-semibold tracking-wide uppercase', isToday ? 'text-(--accent)' : 'text-(--text-muted)']}>
+    {DAY_LABELS[day]}
+    {isToday && <span class="ml-1 normal-case tracking-normal">· Today</span>}
+  </span>
+  <span class="block text-sm font-semibold text-(--text-strong)">{formatShort(date)}</span>
+  {
+    off && (
+      <span class="mt-0.5 block text-xs font-semibold text-(--accent-subtle-text)" title={off.name}>
+        {compact ? 'Day off' : 'Company day off'}
+      </span>
+    )
+  }
+</th>

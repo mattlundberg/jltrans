@@ -1,0 +1,28 @@
+---
+/**
+ * A small rounded label: `solid` for the one thing that matters now ("Today"),
+ * `subtle` for a highlight, `muted` for plain context.
+ */
+interface Props {
+  tone?: 'solid' | 'subtle' | 'muted';
+  size?: 'sm' | 'md';
+  class?: string;
+}
+
+const { tone = 'subtle', size = 'sm', class: className } = Astro.props;
+
+const tones = {
+  solid: 'bg-(--accent) text-(--accent-on)',
+  subtle: 'bg-(--accent-subtle-bg) text-(--accent-subtle-text)',
+  muted: 'bg-(--surface-sunken) text-(--text-muted)',
+} as const;
+
+const sizes = {
+  sm: 'px-2 py-0.5 text-[0.65rem]',
+  md: 'gap-1.5 px-3 py-1 text-xs tracking-wide',
+} as const;
+---
+
+<span class:list={['inline-flex items-center rounded-full font-semibold uppercase', tones[tone], sizes[size], className]}>
+  <slot />
+</span>

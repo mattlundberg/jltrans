@@ -5,7 +5,12 @@
 export const inputClass =
   'w-full rounded-lg border border-(--border-strong) bg-(--surface-page) px-2.5 py-1.5 text-sm text-(--text-strong) placeholder:text-(--text-muted) aria-invalid:border-red-600 dark:aria-invalid:border-red-400';
 
-export const errorText = 'text-xs font-medium text-red-600 dark:text-red-400';
+export const sectionTitle = 'text-xl font-bold text-(--text-strong) sm:text-2xl';
+
+/** A heading one level down from `sectionTitle`: an edit-form part or a location's table. */
+export const subsectionTitle = 'text-lg font-bold text-(--text-strong)';
+
+export const errorText ='text-xs font-medium text-red-600 dark:text-red-400';
 
 export const removeNewRowClass =
   'inline-flex h-8 w-8 items-center justify-center rounded-full text-(--text-muted) hover:bg-(--surface-sunken) hover:text-(--accent)';

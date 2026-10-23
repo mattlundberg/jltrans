@@ -1,0 +1,42 @@
+---
+/**
+ * A message box, in one of four tones:
+ *
+ * - `success` — a check and a short confirmation ("Schedule saved.")
+ * - `alert`   — something went wrong that the reader should act on
+ * - `note`    — information to read, with a small kicker `title` ("Notes")
+ * - `panel`   — a blocking state that replaces the content, with a heading `title`
+ *
+ * The body is the default slot; callers style their own paragraphs.
+ */
+import Icon from './Icon.astro';
+
+interface Props {
+  tone: 'success' | 'alert' | 'note' | 'panel';
+  title?: string;
+  role?: 'status' | 'alert';
+  class?: string;
+}
+
+const { tone, title, role, class: className } = Astro.props;
+
+const tones = {
+  success: 'flex items-start gap-3 border-l-4 border-(--accent) bg-(--accent-subtle-bg) p-5',
+  alert: 'border-l-4 border-(--accent) bg-(--accent-subtle-bg) p-5',
+  note: 'border-l-4 border-(--accent) bg-(--surface-sunken) p-5',
+  panel: 'border border-(--border-strong) bg-(--surface-sunken) p-6 sm:p-8',
+} as const;
+---
+
+<div role={role} class:list={['rounded-(--radius-card)', tones[tone], className]}>
+  {tone === 'success' && <Icon name="check" size={20} class="mt-0.5 text-(--accent)" />}
+  {
+    title &&
+      (tone === 'panel' ? (
+        <h2 class="font-bold text-(--text-strong)">{title}</h2>
+      ) : (
+        <p class="text-xs font-semibold tracking-wide uppercase text-(--text-muted)">{title}</p>
+      ))
+  }
+  <slot />
+</div>

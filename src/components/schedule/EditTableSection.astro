@@ -1,0 +1,65 @@
+---
+/**
+ * One editable table in the schedule form: heading, help text, the table, a
+ * hidden `<template>` row, and an "Add …" button.
+ *
+ * `kind` ties the parts to the page script and the server: the tbody is
+ * `#${kind}-rows`, the template `#${kind}-row-template`, the button
+ * `data-add-row={kind}`, and the hidden `${kind}-count` field is the next free
+ * row index the server reads up to.
+ *
+ * Slots: `description` (help text), `head` (column headers), default (rows),
+ * `template` (the row to clone), `toolbar` (above the table), `add-note`
+ * (beside the Add button) and `after` (anything else that belongs here).
+ */
+import Button from '../primitives/Button.astro';
+import DataTable from '../primitives/DataTable.astro';
+import Icon from '../primitives/Icon.astro';
+import EmptyRow from './EmptyRow.astro';
+import { subsectionTitle } from './classes';
+
+interface Props {
+  kind: 'loc' | 'emp' | 'off';
+  title: string;
+  /** Rows rendered on the server. */
+  count: number;
+  columns: number;
+  tableClass: string;
+  emptyText: string;
+  addLabel: string;
+  /** Shown when the list filter hides every row. Omit for tables without filters. */
+  noMatchesText?: string;
+}
+
+const { kind, title, count, columns, tableClass, emptyText, addLabel, noMatchesText } = Astro.props;
+---
+
+<section class="flex flex-col gap-4">
+  <input type="hidden" name={`${kind}-count`} value={count} />
+  <div>
+    <h3 class={subsectionTitle}>{title}</h3>
+    <p class="mt-1 text-sm text-(--text-muted)"><slot name="description" /></p>
+  </div>
+
+  <slot name="toolbar" />
+
+  <DataTable tableClass={tableClass} bodyId={`${kind}-rows`}>
+    <Fragment slot="head"><slot name="head" /></Fragment>
+    <slot />
+    {count === 0 && <EmptyRow colspan={columns} marker="empty">{emptyText}</EmptyRow>}
+    {noMatchesText && <EmptyRow colspan={columns} marker="no-matches" hidden>{noMatchesText}</EmptyRow>}
+  </DataTable>
+
+  <template id={`${kind}-row-template`}>
+    <slot name="template" />
+  </template>
+  <slot name="after" />
+
+  <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
+    <Button type="button" variant="secondary" data-add-row={kind}>
+      <Icon name="plus" size={16} />
+      {addLabel}
+    </Button>
+    <p class="text-xs text-(--text-muted)"><slot name="add-note" /></p>
+  </div>
+</section>

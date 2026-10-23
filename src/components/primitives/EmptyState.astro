@@ -1,0 +1,17 @@
+---
+/** A dashed placeholder for content that does not exist yet. The slot is the supporting line. */
+import Icon, { type IconName } from './Icon.astro';
+
+interface Props {
+  title: string;
+  icon?: IconName;
+}
+
+const { title, icon } = Astro.props;
+---
+
+<div class="rounded-(--radius-card) border border-dashed border-(--border-strong) bg-(--surface-sunken) p-8 text-center">
+  {icon && <Icon name={icon} size={24} class="mx-auto mb-3 text-(--text-muted)" />}
+  <p class="font-semibold text-(--text-strong)">{title}</p>
+  <p class="mt-1 text-sm text-(--text-muted)"><slot /></p>
+</div>

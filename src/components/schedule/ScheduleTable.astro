@@ -1,0 +1,73 @@
+---
+/**
+ * The staff view of one location's week: a heading, then one row per person
+ * and one cell per day.
+ *
+ * Rows carry their name, position and location as data attributes for the
+ * list filter (see `lib/list-filter.ts`), which may hide the whole section.
+ */
+import DataTable from '../primitives/DataTable.astro';
+import Th from '../primitives/Th.astro';
+import DayHeader from './DayHeader.astro';
+import ShiftCell from './ShiftCell.astro';
+import { DAYS, formatLong, type Day, type DayOff, type Employee, type WeekShifts } from '../../lib/schedule';
+import { subsectionTitle } from './classes';
+
+interface Props {
+  /** The location's id, or '' for people not yet placed anywhere. */
+  locationId: string;
+  title: string;
+  /** In display order. */
+  employees: Employee[];
+  shifts: Record<string, WeekShifts>;
+  weekOf: string;
+  dates: Record<Day, string>;
+  today: string;
+  daysOffByDate: Map<string, DayOff>;
+  /** Whether anyone has a shift this week. */
+  weekPosted: boolean;
+}
+
+const { locationId, title, employees, shifts, weekOf, dates, today, daysOffByDate, weekPosted } = Astro.props;
+---
+
+<section class="flex flex-col gap-3" data-location-section={locationId}>
+  <h3 class={subsectionTitle}>
+    {title}
+    <span class="ml-1 text-sm font-normal text-(--text-muted)">· {employees.length}</span>
+  </h3>
+
+  <DataTable tableClass="min-w-[60rem]" caption={`${title} staff schedule for the week of ${formatLong(weekOf)}`} raised>
+    <Fragment slot="head">
+      <Th class="sticky left-0 z-10 bg-(--surface-sunken)">Employee</Th>
+      {DAYS.map((day) => <DayHeader day={day} date={dates[day]} today={today} off={daysOffByDate.get(dates[day])} />)}
+    </Fragment>
+
+    {
+      employees.map((emp) => (
+        <tr
+          class="border-b border-(--border-subtle) last:border-b-0 hover:bg-(--surface-sunken)/60"
+          data-emp-row
+          data-name={emp.name}
+          data-role={emp.role}
+          data-location={locationId}
+          data-location-name={locationId ? title : ''}
+        >
+          <th scope="row" class="sticky left-0 z-10 min-w-40 bg-(--surface-raised) px-3 py-3 text-left font-normal">
+            <span class="block font-semibold text-(--text-strong)">{emp.name}</span>
+            {emp.role && <span class="block text-xs text-(--text-muted)">{emp.role}</span>}
+          </th>
+          {DAYS.map((day) => (
+            <ShiftCell
+              shift={shifts[emp.id]?.[day]}
+              date={dates[day]}
+              today={today}
+              weekPosted={weekPosted}
+              dayOff={daysOffByDate.has(dates[day])}
+            />
+          ))}
+        </tr>
+      ))
+    }
+  </DataTable>
+</section>

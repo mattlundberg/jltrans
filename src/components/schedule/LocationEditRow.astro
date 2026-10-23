@@ -1,0 +1,67 @@
+---
+/**
+ * One editable location row.
+ *
+ * Rendered for each saved location, and once more inside a `<template>` with
+ * placeholder indexes for the "Add Location" button to clone. A cloned row is
+ * given its id in the browser, so employees can be placed in it before the
+ * first save.
+ */
+import Icon from '../primitives/Icon.astro';
+import { LIMITS, type Location } from '../../lib/schedule';
+import { inputClass, errorText, removeNewRowClass, ROW_INDEX, ROW_NUMBER } from './classes';
+
+interface Props {
+  /** Row index, or omitted for the template row. */
+  index?: number;
+  /** The location, or omitted for a new (template) row. */
+  location?: Location;
+  /** How many people are placed here, shown beside the name. */
+  headcount?: number;
+  error?: string;
+}
+
+const { index, location, headcount = 0, error } = Astro.props;
+
+const i = index ?? ROW_INDEX;
+const n = index === undefined ? ROW_NUMBER : String(index + 1);
+---
+
+<tr class="border-b border-(--border-subtle) align-top last:border-b-0" data-loc-row>
+  <td class="min-w-64 px-2 py-2">
+    <input type="hidden" name={`loc-${i}-id`} value={location?.id ?? ''} data-loc-id />
+    <input
+      type="text"
+      id={`loc-${i}-name`}
+      name={`loc-${i}-name`}
+      value={location?.name ?? ''}
+      maxlength={LIMITS.locationName}
+      placeholder="e.g. Flagstaff"
+      aria-label={`Location name, row ${n}`}
+      aria-invalid={error ? 'true' : undefined}
+      class={inputClass}
+      data-loc-name
+    />
+    {error && <p class:list={[errorText, 'mt-1']}>{error}</p>}
+  </td>
+  <td class="px-3 py-3 whitespace-nowrap text-(--text-muted)">
+    {location ? `${headcount} ${headcount === 1 ? 'person' : 'people'}` : 'New'}
+  </td>
+  <td class="px-3 py-2 text-center">
+    {
+      location ? (
+        <input
+          type="checkbox"
+          name={`loc-${i}-remove`}
+          value="1"
+          aria-label={`Remove ${location.name}`}
+          class="h-4 w-4 accent-(--accent)"
+        />
+      ) : (
+        <button type="button" data-remove-row class={removeNewRowClass} aria-label={`Discard new row ${n}`}>
+          <Icon name="close" size={16} />
+        </button>
+      )
+    }
+  </td>
+</tr>

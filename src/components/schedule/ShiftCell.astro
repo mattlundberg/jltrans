@@ -1,0 +1,43 @@
+---
+/**
+ * One employee's day in the staff view.
+ *
+ * Once a day is over its times no longer help anyone, so it shows only whether
+ * the person worked: a check, or a dash. Today and later show the shift.
+ */
+import Icon from '../primitives/Icon.astro';
+import { formatShift, type Shift } from '../../lib/schedule';
+
+interface Props {
+  shift: Shift | null | undefined;
+  date: string;
+  today: string;
+  /** False while the week has no shifts at all, when "Off" would read as a real answer. */
+  weekPosted: boolean;
+  dayOff?: boolean;
+}
+
+const { shift, date, today, weekPosted, dayOff = false } = Astro.props;
+const past = date < today;
+---
+
+<td class:list={['px-3 py-3 whitespace-nowrap tabular-nums', dayOff && 'bg-(--accent-subtle-bg)/60']}>
+  {
+    past ? (
+      shift ? (
+        <span class="inline-flex text-(--accent)">
+          <Icon name="check" size={18} />
+          <span class="sr-only">Worked</span>
+        </span>
+      ) : (
+        <span class="text-(--text-muted)" aria-label="Did not work">—</span>
+      )
+    ) : shift ? (
+      <span class="font-medium text-(--text-strong)">{formatShift(shift)}</span>
+    ) : weekPosted ? (
+      <span class="text-(--text-muted)">Off</span>
+    ) : (
+      <span class="text-(--text-muted)" aria-label="Not entered">—</span>
+    )
+  }
+</td>

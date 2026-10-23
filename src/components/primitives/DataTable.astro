@@ -1,0 +1,42 @@
+---
+/**
+ * The table surface: a horizontally scrolling card with a sunken header row.
+ *
+ * Column headers go in the `head` slot (use `Th`, or a custom `<th>`); rows go
+ * in the default slot, inside the `<tbody>`. `tableClass` carries the minimum
+ * width so narrow screens scroll the table rather than crushing its columns.
+ */
+interface Props {
+  /** Usually a `min-w-[…]` class. */
+  tableClass?: string;
+  /** Read by screen readers only. */
+  caption?: string;
+  /** Adds the card shadow, for tables that stand alone on the page. */
+  raised?: boolean;
+  /** `id` for the `<tbody>`, for scripts that add or reorder rows. */
+  bodyId?: string;
+  class?: string;
+}
+
+const { tableClass, caption, raised = false, bodyId, class: className } = Astro.props;
+---
+
+<div
+  class:list={[
+    'scroll-x rounded-(--radius-card) border border-(--border-subtle) bg-(--surface-raised)',
+    raised && 'shadow-(--shadow-card)',
+    className,
+  ]}
+>
+  <table class:list={['w-full border-collapse text-sm', tableClass]}>
+    {caption && <caption class="sr-only">{caption}</caption>}
+    <thead class="border-b border-(--border-subtle) bg-(--surface-sunken)">
+      <tr>
+        <slot name="head" />
+      </tr>
+    </thead>
+    <tbody id={bodyId}>
+      <slot />
+    </tbody>
+  </table>
+</div>

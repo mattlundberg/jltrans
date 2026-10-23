@@ -1,6 +1,6 @@
 ---
 /**
- * One editable roster row: name, position, and one cell per day.
+ * One editable roster row: name, position, location, and one cell per day.
  *
  * Day cells are buttons that open the shared shift dialog (see ShiftDialog);
  * the times themselves travel in hidden inputs with the same names the server
@@ -10,7 +10,8 @@
  * with placeholder indexes for the "Add New Employee" button to clone.
  */
 import Icon from '../primitives/Icon.astro';
-import { DAYS, DAY_LABELS, LIMITS, formatShift, type Day, type EditRow } from '../../lib/schedule';
+import LocationSelect from './LocationSelect.astro';
+import { DAYS, DAY_LABELS, LIMITS, formatShift, type Day, type EditRow, type Location } from '../../lib/schedule';
 import { inputClass, errorText, removeNewRowClass, ROW_INDEX, ROW_NUMBER } from './classes';
 
 interface Props {
@@ -18,18 +19,20 @@ interface Props {
   index?: number;
   /** The employee, or omitted for a new (template) row. */
   emp?: EditRow;
+  locations: Location[];
   dates: Record<Day, string>;
   dayOffDates: Set<string>;
-  /** Errors keyed `index-day` or `index-name`. */
+  /** Errors keyed `index-day`, `index-name` or `index-location`. */
   errorAt?: Map<string, string>;
 }
 
-const { index, emp, dates, dayOffDates, errorAt = new Map<string, string>() } = Astro.props;
+const { index, emp, locations, dates, dayOffDates, errorAt = new Map<string, string>() } = Astro.props;
 
 const i = index ?? ROW_INDEX;
 const n = index === undefined ? ROW_NUMBER : String(index + 1);
 const label = emp?.name || `Row ${n}`;
 const nameError = errorAt.get(`${i}-name`);
+const locationError = errorAt.get(`${i}-location`);
 
 /** What a day cell shows. Half-filled or invalid input (from a refused save) is shown as typed. */
 function cellText(times: { start: string; end: string } | undefined): string {
@@ -64,8 +67,21 @@ function cellText(times: { start: string; end: string } | undefined): string {
         placeholder="Position, e.g. Driver"
         aria-label={`Position, row ${n}`}
         class={inputClass}
+        data-emp-role
       />
       {nameError && <p class={errorText}>{nameError}</p>}
+      {/* Required, but enforced on save: a native `required` would also block the blank rows the server skips. */}
+      <LocationSelect
+        locations={locations}
+        placeholder="Choose location…"
+        value={emp?.location}
+        name={`emp-${i}-location`}
+        id={`emp-${i}-location`}
+        label={`Location, row ${n}`}
+        invalid={Boolean(locationError)}
+        data-emp-location
+      />
+      {locationError && <p class={errorText}>{locationError}</p>}
       <button
         type="button"
         data-set-hours

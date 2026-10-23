@@ -1,0 +1,41 @@
+---
+/**
+ * A row of link tabs in a pill track. Each tab is a real link, so the choice
+ * lives in the URL and works without JavaScript.
+ */
+interface Tab {
+  href: string;
+  label: string;
+  /** Lighter text after the label, e.g. a date. */
+  detail?: string;
+  current?: boolean;
+}
+
+interface Props {
+  tabs: Tab[];
+  /** Names the `<nav>` for screen readers, e.g. "Choose week". */
+  label: string;
+}
+
+const { tabs, label } = Astro.props;
+---
+
+<nav aria-label={label} class="inline-flex w-fit gap-1 rounded-full border border-(--border-subtle) bg-(--surface-sunken) p-1">
+  {
+    tabs.map((tab) => (
+      <a
+        href={tab.href}
+        aria-current={tab.current ? 'page' : undefined}
+        class:list={[
+          'rounded-full px-4 py-1.5 text-sm font-semibold whitespace-nowrap transition-colors',
+          tab.current
+            ? 'bg-(--surface-raised) text-(--text-strong) shadow-(--shadow-card)'
+            : 'text-(--text-muted) hover:text-(--text-strong)',
+        ]}
+      >
+        {tab.label}
+        {tab.detail && <span class="ml-1 font-normal text-(--text-muted)">{tab.detail}</span>}
+      </a>
+    ))
+  }
+</nav>

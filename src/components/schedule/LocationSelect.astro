@@ -1,0 +1,40 @@
+---
+/**
+ * A `<select>` of the schedule's locations, with a blank first option.
+ *
+ * Used for an employee's location in the edit form and for the location
+ * filter. Both carry `data-location-select`, which is how the edit page keeps
+ * their options in step while locations are added or renamed before saving —
+ * the script keeps the first option and rebuilds the rest.
+ */
+import type { Location } from '../../lib/schedule';
+import { inputClass } from './classes';
+
+interface Props {
+  locations: Location[];
+  /** The blank option: "Choose location…" for a field, "All locations" for a filter. */
+  placeholder: string;
+  value?: string;
+  name?: string;
+  id?: string;
+  label: string;
+  invalid?: boolean;
+  class?: string;
+  [attr: `data-${string}`]: string | boolean | undefined;
+}
+
+const { locations, placeholder, value = '', name, id, label, invalid = false, class: className, ...rest } = Astro.props;
+---
+
+<select
+  name={name}
+  id={id}
+  aria-label={label}
+  aria-invalid={invalid ? 'true' : undefined}
+  class:list={[inputClass, className]}
+  data-location-select
+  {...rest}
+>
+  <option value="">{placeholder}</option>
+  {locations.map((loc) => <option value={loc.id} selected={loc.id === value}>{loc.name}</option>)}
+</select>

@@ -1,0 +1,15 @@
+---
+/** A plain column header for `DataTable`: small, uppercase, muted. */
+interface Props {
+  class?: string;
+}
+
+const { class: className } = Astro.props;
+---
+
+<th
+  scope="col"
+  class:list={['px-3 py-2.5 text-left text-xs font-semibold tracking-wide whitespace-nowrap uppercase text-(--text-muted)', className]}
+>
+  <slot />
+</th>

@@ -1,0 +1,54 @@
+---
+/**
+ * Search, filter and sort controls for a roster list. Markup only: the page
+ * wires it up with `initListFilter` from `lib/list-filter.ts`.
+ *
+ * The controls have no `name`, so inside the edit form they are never
+ * submitted.
+ */
+import LocationSelect from './LocationSelect.astro';
+import type { Location } from '../../lib/schedule';
+import { inputClass } from './classes';
+
+interface Props {
+  locations: Location[];
+  /** Distinct positions, already sorted. */
+  roles: string[];
+  /** Offer "Location" as a sort — only useful where locations are not already grouped. */
+  sortByLocation?: boolean;
+}
+
+const { locations, roles, sortByLocation = false } = Astro.props;
+
+const label = 'flex flex-col gap-1 text-xs font-semibold tracking-wide uppercase text-(--text-muted)';
+---
+
+<div class="flex flex-col gap-2" data-list-filter>
+  <div role="search" class="grid gap-3 rounded-(--radius-card) border border-(--border-subtle) bg-(--surface-sunken) p-3 sm:grid-cols-2 lg:grid-cols-4">
+    <label class={label}>
+      Search
+      <input type="search" placeholder="Name" autocomplete="off" class={inputClass} data-filter="search" />
+    </label>
+    <label class={label}>
+      Location
+      <LocationSelect locations={locations} placeholder="All locations" label="Filter by location" data-filter="location" />
+    </label>
+    <label class={label}>
+      Position
+      <select class={inputClass} data-filter="role">
+        <option value="">All positions</option>
+        {roles.map((role) => <option value={role}>{role}</option>)}
+      </select>
+    </label>
+    <label class={label}>
+      Sort by
+      <select class={inputClass} data-filter="sort">
+        <option value="name">Name A–Z</option>
+        <option value="name-desc">Name Z–A</option>
+        <option value="role">Position</option>
+        {sortByLocation && <option value="location">Location</option>}
+      </select>
+    </label>
+  </div>
+  <p class="text-xs text-(--text-muted)" aria-live="polite" data-filter-count></p>
+</div>

@@ -3,7 +3,8 @@
  *
  * SHAPE
  * -----
- * The roster (names and positions) is shared. Shifts live per week, keyed by
+ * The roster (names, positions and locations) and the list of locations are
+ * shared. Shifts live per week, keyed by
  * that week's Monday, so "this week" and "next week" are simply the two keys
  * nearest today. When the calendar rolls over, what was next week becomes this
  * week on its own — nobody has to promote it.
@@ -51,13 +52,29 @@ export const DAY_LABELS: Record<Day, string> = {
 /** J&L's yard is in Arizona, which does not observe DST. */
 export const TIME_ZONE = 'America/Phoenix';
 
+export interface Location {
+  id: string;
+  name: string;
+}
+
+/** Where J&L staff are based to begin with. Editors maintain the list from here on. */
+export const DEFAULT_LOCATIONS: Location[] = [
+  { id: 'phoenix', name: 'Phoenix' },
+  { id: 'reno', name: 'Reno' },
+  { id: 'tucson', name: 'Tucson' },
+];
+
 export interface Employee {
   id: string;
   name: string;
   role: string;
+  /**
+   * A `Location` id. Empty only for someone carried over from before locations
+   * existed, until an editor next saves — saving requires one.
+   */
+  location: string;
 }
 
-/** Same-day shift, `HH:MM` 24-hour. `start` is always earlier than `end`. */
 /**
  * Same-day shift, `HH:MM` 24-hour. `end` is optional — an empty string when
  * only the start is known — and when present is always later than `start`.
@@ -86,7 +103,8 @@ export interface DayOff {
 }
 
 export interface Schedule {
-  version: 2;
+  version: 3;
+  locations: Location[];
   employees: Employee[];
   /** Keyed by the week's Monday, YYYY-MM-DD. */
   weeks: Record<string, Week>;
@@ -103,6 +121,8 @@ export interface Schedule {
 export const LIMITS = {
   employees: 200,
   daysOff: 100,
+  locations: 20,
+  locationName: 40,
   name: 80,
   role: 60,
   dayOffName: 80,
@@ -202,6 +222,11 @@ export { normaliseTime, formatTime, formatShift } from './time';
 /* Weeks                                                                      */
 /* -------------------------------------------------------------------------- */
 
+/** The default roster order: name A–Z, ignoring case and accents. */
+export function byName(a: { name: string }, b: { name: string }): number {
+  return a.name.localeCompare(b.name, 'en', { sensitivity: 'base' });
+}
+
 export function emptyWeekShifts(): WeekShifts {
   return Object.fromEntries(DAYS.map((day) => [day, null])) as WeekShifts;
 }
@@ -244,7 +269,14 @@ function store() {
 }
 
 export function emptySchedule(): Schedule {
-  return { version: 2, employees: [], weeks: {}, daysOff: [], updatedAt: null };
+  return {
+    version: 3,
+    locations: structuredClone(DEFAULT_LOCATIONS),
+    employees: [],
+    weeks: {},
+    daysOff: [],
+    updatedAt: null,
+  };
 }
 
 /**
@@ -253,15 +285,19 @@ export function emptySchedule(): Schedule {
  * Version 1 had one week of free-text shifts ("6a–2p", "Off"). Those cannot be
  * turned into reliable times, so the roster and company days off carry over and
  * the shifts start blank.
+ *
+ * Version 2 had no locations. The default list is added and everyone starts
+ * without one; the next save asks the editor to place each person.
  */
 function migrate(stored: unknown): Schedule {
-  const doc = stored as Partial<Schedule> & { version?: number; employees?: Employee[] };
-  if (doc.version === 2) return doc as Schedule;
+  const doc = stored as Partial<Omit<Schedule, 'version'>> & { version?: number };
+  if (doc.version === 3) return doc as Schedule;
 
   return {
-    version: 2,
-    employees: (doc.employees ?? []).map(({ id, name, role }) => ({ id, name, role })),
-    weeks: {},
+    version: 3,
+    locations: structuredClone(DEFAULT_LOCATIONS),
+    employees: (doc.employees ?? []).map(({ id, name, role }) => ({ id, name, role, location: '' })),
+    weeks: doc.version === 2 ? (doc.weeks ?? {}) : {},
     daysOff: doc.daysOff ?? [],
     updatedAt: doc.updatedAt ?? null,
   };
@@ -307,38 +343,43 @@ export async function updateSchedule(
 /* -------------------------------------------------------------------------- */
 
 /**
- * What the edit form shows and submits: the shared roster, one week's shifts
- * and notes, and the company days off. Times are kept as raw strings so a
- * submission with mistakes can be shown back exactly as typed.
+ * What the edit form shows and submits: the locations, the shared roster, one
+ * week's shifts and notes, and the company days off. Times are kept as raw
+ * strings so a submission with mistakes can be shown back exactly as typed.
  */
 export interface EditRow {
   id: string;
   name: string;
   role: string;
+  location: string;
   times: Record<Day, { start: string; end: string }>;
 }
 
 export interface WeekEdit {
   weekOf: string;
   notes: string;
+  locations: Location[];
   employees: EditRow[];
   daysOff: DayOff[];
 }
 
-/** A problem with one day of one row. `row` indexes `WeekEdit.employees`. */
-export interface ShiftError {
-  row: number;
-  day: Day | null;
-  message: string;
-}
+/**
+ * A problem with one row of the edit form. For `employee`, `row` indexes
+ * `WeekEdit.employees` and `field` is a day, `name` or `location`. For
+ * `location`, `row` indexes `WeekEdit.locations`.
+ */
+export type FormError =
+  | { kind: 'employee'; row: number; field: Day | 'name' | 'location'; message: string }
+  | { kind: 'location'; row: number; message: string };
 
 export function weekEditFrom(schedule: Schedule, weekOf: string): WeekEdit {
   const week = getWeek(schedule, weekOf);
   return {
     weekOf,
     notes: week.notes,
+    locations: schedule.locations,
     daysOff: schedule.daysOff,
-    employees: schedule.employees.map((emp) => ({
+    employees: [...schedule.employees].sort(byName).map((emp) => ({
       ...emp,
       times: Object.fromEntries(
         DAYS.map((day) => {
@@ -352,7 +393,7 @@ export function weekEditFrom(schedule: Schedule, weekOf: string): WeekEdit {
 
 /** Writes a validated `WeekEdit` into the schedule. Other weeks keep their shifts. */
 export function applyWeekEdit(schedule: Schedule, edit: WeekEdit): Omit<Schedule, 'updatedAt'> {
-  const employees = edit.employees.map(({ id, name, role }) => ({ id, name, role }));
+  const employees = edit.employees.map(({ id, name, role, location }) => ({ id, name, role, location }));
   const ids = new Set(employees.map((emp) => emp.id));
 
   // Someone removed from the roster loses their shifts in every week.
@@ -378,7 +419,7 @@ export function applyWeekEdit(schedule: Schedule, edit: WeekEdit): Omit<Schedule
     ),
   };
 
-  return { version: 2, employees, weeks, daysOff: edit.daysOff };
+  return { version: 3, locations: edit.locations, employees, weeks, daysOff: edit.daysOff };
 }
 
 /* -------------------------------------------------------------------------- */
@@ -386,8 +427,8 @@ export function applyWeekEdit(schedule: Schedule, edit: WeekEdit): Omit<Schedule
 /* -------------------------------------------------------------------------- */
 
 /*
- * The edit form posts flat fields — `emp-3-name`, `emp-3-tue-start`,
- * `off-1-date` — plus a row count for each table. Flat names keep the form
+ * The edit form posts flat fields — `loc-0-name`, `emp-3-name`,
+ * `emp-3-tue-start`, `off-1-date` — plus a row count for each table. Flat names keep the form
  * plain HTML, and parsing stays a simple loop. Rows the editor added and then
  * removed simply never arrive, so gaps in the numbering are skipped.
  */
@@ -437,9 +478,22 @@ function checkShift(rawStart: string, rawEnd: string): { start: string; end: str
   return { start, end, error: null };
 }
 
-export function parseWeekForm(form: FormData, weekOf: string): { edit: WeekEdit; errors: ShiftError[] } {
+export function parseWeekForm(form: FormData, weekOf: string): { edit: WeekEdit; errors: FormError[] } {
+  const errors: FormError[] = [];
+
+  // Locations first, so employee rows can be checked against them. Whether a
+  // row marked Remove can actually go depends on the employees, so that is
+  // settled after them.
+  const posted: (Location & { remove: boolean })[] = [];
+  const locationRows = count(form, 'loc-count', FORM_ROW_CAP);
+
+  for (let i = 0; i < locationRows && posted.length < LIMITS.locations; i++) {
+    const p = `loc-${i}`;
+    const name = text(form, `${p}-name`, LIMITS.locationName);
+    if (name) posted.push({ id: rowId(form, `${p}-id`), name, remove: Boolean(form.get(`${p}-remove`)) });
+  }
+
   const employees: EditRow[] = [];
-  const errors: ShiftError[] = [];
   const employeeRows = count(form, 'emp-count', FORM_ROW_CAP);
 
   for (let i = 0; i < employeeRows && employees.length < LIMITS.employees; i++) {
@@ -457,17 +511,41 @@ export function parseWeekForm(form: FormData, weekOf: string): { edit: WeekEdit;
     // Errors index into `employees`, which skips rows — so take the index the
     // row will have in the redisplayed form, not the posted one.
     const row = employees.length;
-    if (!name) errors.push({ row, day: null, message: 'Add a name for this row, or clear its times.' });
+    if (!name) errors.push({ kind: 'employee', row, field: 'name', message: 'Add a name for this row, or clear its times.' });
+
+    const location = text(form, `${p}-location`, 64);
+    if (name && !posted.some((loc) => loc.id === location)) {
+      errors.push({ kind: 'employee', row, field: 'location', message: 'Choose a location for this employee.' });
+    }
 
     const times = {} as EditRow['times'];
     for (const [day, rawStart, rawEnd] of raw) {
       const { start, end, error } = checkShift(rawStart, rawEnd);
       times[day] = { start, end };
-      if (error) errors.push({ row, day, message: error });
+      if (error) errors.push({ kind: 'employee', row, field: day, message: error });
     }
 
-    employees.push({ id: rowId(form, `${p}-id`), name, role: text(form, `${p}-role`, LIMITS.role), times });
+    employees.push({ id: rowId(form, `${p}-id`), name, role: text(form, `${p}-role`, LIMITS.role), location, times });
   }
+
+  // A location still in use stays, with a note saying why, rather than leaving
+  // people placed nowhere.
+  const locations: Location[] = [];
+  const seenNames = new Set<string>();
+
+  for (const { id, name, remove } of posted) {
+    const inUse = employees.some((emp) => emp.location === id);
+    if (remove && !inUse) continue;
+
+    const row = locations.length;
+    locations.push({ id, name });
+
+    const key = name.toLocaleLowerCase('en');
+    if (remove) errors.push({ kind: 'location', row, message: `Move everyone out of ${name} before removing it.` });
+    else if (seenNames.has(key)) errors.push({ kind: 'location', row, message: `There is already a location called ${name}.` });
+    seenNames.add(key);
+  }
+  if (locations.length === 0) errors.push({ kind: 'location', row: 0, message: 'Keep at least one location.' });
 
   const daysOff: DayOff[] = [];
   const dayOffRows = count(form, 'off-count', FORM_ROW_CAP);
@@ -487,7 +565,7 @@ export function parseWeekForm(form: FormData, weekOf: string): { edit: WeekEdit;
   daysOff.sort((a, b) => a.date.localeCompare(b.date));
 
   return {
-    edit: { weekOf, notes: multiline(form, 'notes', LIMITS.notes), employees, daysOff },
+    edit: { weekOf, notes: multiline(form, 'notes', LIMITS.notes), locations, employees, daysOff },
     errors,
   };
 }
